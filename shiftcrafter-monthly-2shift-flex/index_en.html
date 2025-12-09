@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ShiftCrafter Part 4 — Short-Shift Support (Monthly, 2-shift + short day)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; color: #0e1d2f; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    .desc { color: #456; margin-bottom: 16px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .panel { border: 1px solid #dde3ea; border-radius: 10px; padding: 12px; background: #f8fafc; }
+    .panel h2 { font-size: 16px; margin: 0 0 8px; }
+    label { display:block; font-size: 12px; color:#345; margin: 6px 0 4px; }
+    input, textarea, select, button { width: 100%; box-sizing: border-box; font-size: 14px; padding: 8px; border: 1px solid #c9d3df; border-radius: 8px; }
+    textarea { min-height: 110px; resize: vertical; }
+    .row { display:flex; gap: 8px; align-items:center; }
+    .row > * { flex: 1; }
+    .btn { background:#0ea5a6; color:white; border:none; padding:10px 12px; border-radius: 10px; cursor:pointer; font-weight: 600; }
+    .btn.secondary { background:#475569; }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    table { width:100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border:1px solid #e2e8f0; padding:6px 8px; text-align:left; }
+    th { background:#eef2f7; }
+    .note { font-size:12px; color:#566; }
+    .ok { color:#0a7; font-weight:600; }
+    .warn { color:#b45309; font-weight:600; }
+    .error { color:#b91c1c; font-weight:600; }
+    .footer { margin-top: 16px; font-size: 12px; color:#566; }
+    .mono { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h1>ShiftCrafter Part 4 — Short-Shift Support (Monthly, 2-shift + short day)</h1>
+  <p class="desc">
+    Auto-assign a <b>monthly</b> schedule for Day/Night plus <b>Short Day</b> staff. Exports <b>CSV / ICS / Validation CSV</b>. Data never leaves your browser.
+  </p>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Input</h2>
+      <label>Target Month (YYYY-MM)</label>
+      <input id="month" type="month" />
+      <div class="row">
+        <div>
+          <label>Required Headcount (as <b>Day full equivalents</b>, same for all days)</label>
+          <input id="needDay" type="number" min="0" value="2" />
+        </div>
+        <div>
+          <label>Required Headcount (Night, same for all days)</label>
+          <input id="needNight" type="number" min="0" value="1" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Weekly night cap (per staff)</label>
+          <input id="weeklyNightCap" type="number" min="0" value="2" />
+        </div>
+        <div>
+          <label>Monthly night cap (optional; blank = unlimited)</label>
+          <input id="monthlyNightCap" type="number" min="0" placeholder="e.g., 6" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Short shift weight (default <b>0.8</b>)</label>
+          <input id="shortWeight" type="number" step="0.05" min="0" max="1" value="0.8" />
+        </div>
+        <div>
+          <label>Short shift time (default 09:00–16:00)</label>
+          <input id="shortTime" type="text" value="09:00-16:00" />
+        </div>
+      </div>
+
+      <label>Staff list — <b>Full day / Night eligible</b> (one per line)</label>
+      <textarea id="staffFull" placeholder="Alice\nBob\nCharlie\n…"></textarea>
+
+      <label>Staff list — <b>Short day only</b> (one per line)</label>
+      <textarea id="staffShort" placeholder="Dana (short)\nEvan (short)\n…"></textarea>
+
+      <label>Day-off requests (optional; one per line) <span class="note">e.g., 2025-11-03 Alice</span></label>
+      <textarea id="requests" placeholder="2025-11-03 Alice\n2025-11-08 Bob"></textarea>
+
+      <div class="row" style="margin-top:8px;">
+        <button class="btn" id="btnGen">Generate schedule</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn secondary" id="btnCsv" disabled>Download CSV</button>
+        <button class="btn secondary" id="btnIcsAll" disabled>Download ICS</button>
+        <button class="btn secondary" id="btnValidate" disabled>Download Validation CSV</button>
+      </div>
+      <div id="msg" class="note" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Preview</h2>
+      <div id="tableWrap" class="mono">No schedule yet</div>
+      <div class="footer note">
+        Rules (MVP): No Day after Night / Weekly & Monthly night caps / Respect day-off requests /
+        Day coverage = Full first, then Short to fill the gap (weighted).
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px;">
+    <h2>Validation Summary</h2>
+    <div id="summary" class="mono">—</div>
+  </div>
+
+<script>
+// ===== Utilities =====
+const fmtDate = (d) => d.toISOString().slice(0,10);
+function parseMonthStr(ym){ if(!ym) return null; const [y,m]=ym.split('-').map(Number); return new Date(y,m-1,1); }
+function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
+function addDays(date,n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
+function dowStr(d){ return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]; }
+function isoWeekKey(d){
+  const date=new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum=(date.getUTCDay()+6)%7; date.setUTCDate(date.getUTCDate()-dayNum+3);
+  const firstThu=new Date(Date.UTC(date.getUTCFullYear(),0,4));
+  const week=1+Math.round(((date-firstThu)/86400000 -3 + ((firstThu.getUTCDay()+6)%7))/7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2,'0')}`;
+}
+
+// ===== Inputs =====
+const elMonth = document.getElementById('month');
+const elNeedDay = document.getElementById('needDay');
+const elNeedNight = document.getElementById('needNight');
+const elWCap = document.getElementById('weeklyNightCap');
+const elMCap = document.getElementById('monthlyNightCap');
+const elShortWeight = document.getElementById('shortWeight');
+const elShortTime = document.getElementById('shortTime');
+const elStaffFull = document.getElementById('staffFull');
+const elStaffShort = document.getElementById('staffShort');
+const elRequests = document.getElementById('requests');
+
+const elBtnGen = document.getElementById('btnGen');
+const elBtnCsv = document.getElementById('btnCsv');
+const elBtnIcsAll = document.getElementById('btnIcsAll');
+const elBtnValidate = document.getElementById('btnValidate');
+const elMsg = document.getElementById('msg');
+
+function getListById(id){
+  return document.getElementById(id).value.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+}
+function getStaffFull(){ return getListById('staffFull'); }
+function getStaffShort(){ return getListById('staffShort'); }
+function getRequests(){
+  const m={}; elRequests.value.split(/\n+/).forEach(line=>{
+    line=line.trim(); if(!line) return;
+    const [date, ...rest]=line.split(/\s+/);
+    const name=rest.join(' ').trim();
+    if(!m[date]) m[date]=new Set();
+    if(name) m[date].add(name);
+  }); return m;
+}
+
+// ===== Assignment (MVP) =====
+function assignMonthly(params){
+  const { monthStart, needDay, needNight, weeklyNightCap, monthlyNightCap, staffFull, staffShort, requests, shortWeight } = params;
+  const days = daysInMonth(monthStart);
+  const schedule = []; // {date,dow, dayFull:[], dayShort:[], night:[], needDay, needNight}
+
+  const everyone = [...new Set([...staffFull, ...staffShort])];
+  const stats = {};
+  everyone.forEach(s=> stats[s]={ total:0, nightMonth:0, nightByWeek:{}, lastShiftByDate:{} });
+  const cmpRank = (ra, rb)=>{
+    for(let i=0;i<ra.length;i++){
+      if(ra[i]<rb[i]) return -1;
+      if(ra[i]>rb[i]) return 1;
+    }
+    return 0;
+  };
+
+  for(let i=0;i<days;i++){
+    const d = addDays(monthStart, i);
+    const dateStr = fmtDate(d);
+    const weekKey = isoWeekKey(d);
+    const dayReq = Number(needDay)||0;
+    const nightReq = Number(needNight)||0;
+
+    const dayFull = [];
+    const dayShort = [];
+    const nightArr = [];
+
+    const isReqOff = (name)=> requests[dateStr]?.has(name);
+    const hadNightPrev = (name)=>{
+      const prev = addDays(d,-1);
+      return stats[name].lastShiftByDate[fmtDate(prev)]==='Night';
+    };
+
+    function rankNight(name){
+      const st=stats[name]; const wk=st.nightByWeek[weekKey]||0; const m=st.nightMonth;
+      return [m, wk, st.total, name];
+    }
+    function rankDay(name){
+      const st=stats[name]; return [st.total, st.nightMonth, name];
+    }
+
+    // Night (full-eligible staff only)
+    for(let k=0;k<nightReq;k++){
+      const candidates = staffFull.filter(name=>{
+        if(isReqOff(name)) return false;
+        if(nightArr.includes(name)) return false;
+        const wk=stats[name].nightByWeek[weekKey]||0;
+        if(weeklyNightCap!=null && weeklyNightCap!=='' && wk>=Number(weeklyNightCap)) return false;
+        if(monthlyNightCap!=null && monthlyNightCap!=='' && stats[name].nightMonth>=Number(monthlyNightCap)) return false;
+        return true;
+      }).sort((a,b)=> cmpRank(rankNight(a), rankNight(b)));
+      if(candidates.length){
+        const pick=candidates[0];
+        nightArr.push(pick);
+        stats[pick].total++; stats[pick].nightMonth++;
+        stats[pick].nightByWeek[weekKey]=(stats[pick].nightByWeek[weekKey]||0)+1;
+        stats[pick].lastShiftByDate[dateStr]='Night';
+      }
+    }
+
+    // Day: mix Full and Short until weighted coverage hits needDay
+    function coverage(){ return dayFull.length + shortWeight * dayShort.length; }
+    const target = dayReq;
+    function pickDayCandidate(){
+      const fullCandidates = staffFull.filter(name=>{
+        if(isReqOff(name)) return false;
+        if(nightArr.includes(name)) return false;
+        if(dayFull.includes(name)) return false;
+        if(dayShort.includes(name)) return false;
+        if(hadNightPrev(name)) return false;
+        return true;
+      }).sort((a,b)=> cmpRank(rankDay(a), rankDay(b)));
+      const shortCandidates = staffShort.filter(name=>{
+        if(isReqOff(name)) return false;
+        if(dayShort.includes(name)) return false;
+        if(dayFull.includes(name)) return false;
+        if(nightArr.includes(name)) return false;
+        if(hadNightPrev(name)) return false;
+        return true;
+      }).sort((a,b)=> cmpRank(rankDay(a), rankDay(b)));
+
+      if(!fullCandidates.length && !shortCandidates.length) return null;
+      if(!fullCandidates.length) return { type:'short', name:shortCandidates[0] };
+      if(!shortCandidates.length) return { type:'full', name:fullCandidates[0] };
+      const cmp = cmpRank(rankDay(fullCandidates[0]), rankDay(shortCandidates[0]));
+      if(cmp<0) return { type:'full', name:fullCandidates[0] };
+      if(cmp>0) return { type:'short', name:shortCandidates[0] };
+      // tie -> prefer short so they are actually scheduled
+      return { type:'short', name:shortCandidates[0] };
+    }
+
+    while(coverage() < target){
+      const pick=pickDayCandidate();
+      if(!pick) break;
+      if(pick.type==='full'){
+        dayFull.push(pick.name);
+        stats[pick.name].total++; stats[pick.name].lastShiftByDate[dateStr]='DayFull';
+      }else{
+        if(shortWeight<=0) break; // avoid infinite loop if weight is zero
+        dayShort.push(pick.name);
+        stats[pick.name].total++; stats[pick.name].lastShiftByDate[dateStr]='DayShort';
+      }
+    }
+
+    schedule.push({
+      date:dateStr, dow:dowStr(d),
+      dayFull, dayShort, night:nightArr,
+      needDay:dayReq, needNight:nightReq
+    });
+  }
+  return { schedule, everyone };
+}
+
+// ===== Download helpers =====
+function download(filename, blob){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 250);
+}
+
+// ===== CSV (wide) =====
+function toCSVWide(schedule){
+  let maxF=0, maxS=0, maxN=0;
+  schedule.forEach(r=>{
+    maxF=Math.max(maxF, r.dayFull.length);
+    maxS=Math.max(maxS, r.dayShort.length);
+    maxN=Math.max(maxN, r.night.length);
+  });
+  const headers=['date','dow','need_day','need_night'];
+  for(let i=1;i<=maxF;i++) headers.push(`day_full_${i}`);
+  for(let i=1;i<=maxS;i++) headers.push(`day_short_${i}`);
+  for(let i=1;i<=maxN;i++) headers.push(`night_${i}`);
+
+  const rows=[headers.join(',')];
+  schedule.forEach(r=>{
+    const row=[r.date, r.dow, r.needDay, r.needNight];
+    for(let i=0;i<maxF;i++) row.push(r.dayFull[i]||'');
+    for(let i=0;i<maxS;i++) row.push(r.dayShort[i]||'');
+    for(let i=0;i<maxN;i++) row.push(r.night[i]||'');
+    rows.push(row.map(v=> String(v).replaceAll('"','""')).map(v=> /[,\n"]/.test(v)?`"${v}"`:v).join(','));
+  });
+  const bom=new Uint8Array([0xEF,0xBB,0xBF]);
+  return new Blob([bom, rows.join('\n')], {type:'text/csv;charset=utf-8;'});
+}
+
+// ===== ICS =====
+function buildICS(schedule){
+  const tz='Asia/Tokyo';
+  const now=new Date();
+  const dtstamp=now.toISOString().replace(/[-:]/g,'').replace(/\..+/, 'Z');
+  const EOL='\r\n';
+  const pad2=n=>String(n).padStart(2,'0');
+  function dtLocal(dateStr, hhmm){
+    const [Y,M,D]=dateStr.split('-').map(Number);
+    const [hh,mm]=hhmm.split(':').map(Number);
+    return `${Y}${pad2(M)}${pad2(D)}T${pad2(hh)}${pad2(mm)}00`;
+  }
+  function plusOneDay(dateStr){ const d=new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+1); return fmtDate(d); }
+
+  const dayFullStart='08:30', dayFullEnd='17:00';
+  const shortText = document.getElementById('shortTime').value.trim();
+  const [shortStart, shortEnd] = (shortText||'09:00-16:00').split('-');
+  const nightStart='17:00', nightEnd='09:00';
+
+  const lines=[];
+  lines.push('BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//ShiftCrafter//Part4//EN','CALSCALE:GREGORIAN');
+
+  schedule.forEach(r=>{
+    r.dayFull.forEach(name=>{
+      lines.push('BEGIN:VEVENT');
+      lines.push(`UID:${r.date}-dayfull-${encodeURIComponent(name)}@shiftcrafter`);
+      lines.push(`DTSTAMP:${dtstamp}`);
+      lines.push(`DTSTART;TZID=${tz}:${dtLocal(r.date,dayFullStart)}`);
+      lines.push(`DTEND;TZID=${tz}:${dtLocal(r.date,dayFullEnd)}`);
+      lines.push(`SUMMARY:Day (Full): ${name}`);
+      lines.push('END:VEVENT');
+    });
+    r.dayShort.forEach(name=>{
+      lines.push('BEGIN:VEVENT');
+      lines.push(`UID:${r.date}-dayshort-${encodeURIComponent(name)}@shiftcrafter`);
+      lines.push(`DTSTAMP:${dtstamp}`);
+      lines.push(`DTSTART;TZID=${tz}:${dtLocal(r.date,shortStart)}`);
+      lines.push(`DTEND;TZID=${tz}:${dtLocal(r.date,shortEnd)}`);
+      lines.push(`SUMMARY:Day (Short): ${name}`);
+      lines.push('END:VEVENT');
+    });
+    r.night.forEach(name=>{
+      const next=plusOneDay(r.date);
+      lines.push('BEGIN:VEVENT');
+      lines.push(`UID:${r.date}-night-${encodeURIComponent(name)}@shiftcrafter`);
+      lines.push(`DTSTAMP:${dtstamp}`);
+      lines.push(`DTSTART;TZID=${tz}:${dtLocal(r.date,nightStart)}`);
+      lines.push(`DTEND;TZID=${tz}:${dtLocal(next,nightEnd)}`);
+      lines.push(`SUMMARY:Night: ${name}`);
+      lines.push('END:VEVENT');
+    });
+  });
+
+  lines.push('END:VCALENDAR');
+  return new Blob([lines.join(EOL)], {type:'text/calendar;charset=utf-8;'});
+}
+
+// ===== Render =====
+function renderTable(schedule){
+  if(!schedule.length){ document.getElementById('tableWrap').textContent='No schedule yet'; return; }
+  let maxF=0,maxS=0,maxN=0;
+  schedule.forEach(r=>{ maxF=Math.max(maxF,r.dayFull.length); maxS=Math.max(maxS,r.dayShort.length); maxN=Math.max(maxN,r.night.length); });
+  let html='<table><thead><tr><th>date</th><th>dow</th><th>need_day</th><th>need_night</th>';
+  for(let i=1;i<=maxF;i++) html+=`<th>day_full_${i}</th>`;
+  for(let i=1;i<=maxS;i++) html+=`<th>day_short_${i}</th>`;
+  for(let i=1;i<=maxN;i++) html+=`<th>night_${i}</th>`;
+  html+='</tr></thead><tbody>';
+  schedule.forEach(r=>{
+    html+='<tr>' + `<td>${r.date}</td><td>${r.dow}</td><td>${r.needDay}</td><td>${r.needNight}</td>`;
+    for(let i=0;i<maxF;i++) html+=`<td>${r.dayFull[i]||''}</td>`;
+    for(let i=0;i<maxS;i++) html+=`<td>${r.dayShort[i]||''}</td>`;
+    for(let i=0;i<maxN;i++) html+=`<td>${r.night[i]||''}</td>`;
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById('tableWrap').innerHTML=html;
+}
+
+function renderSummary(schedule, staffFull, staffShort, shortWeight){
+  const everyone=[...new Set([...staffFull,...staffShort])];
+  const byStaff=Object.fromEntries(everyone.map(s=>[s,{total:0, night:0, dayFull:0, dayShort:0}]));
+  let consecNight=0;
+
+  for(let i=0;i<schedule.length;i++){
+    const cur=schedule[i]; const prev=schedule[i-1];
+    cur.dayFull.forEach(n=>{ byStaff[n].total++; byStaff[n].dayFull++; });
+    cur.dayShort.forEach(n=>{ byStaff[n].total++; byStaff[n].dayShort++; });
+    cur.night.forEach(n=>{ byStaff[n].total++; byStaff[n].night++; });
+    if(prev){
+      const setPrevN=new Set(prev.night);
+      cur.night.forEach(n=>{ if(setPrevN.has(n)) consecNight++; });
+    }
+  }
+
+  let req=0, delivered=0;
+  schedule.forEach(r=>{
+    req += (r.needDay||0);
+    delivered += (r.dayFull.length + shortWeight * r.dayShort.length);
+  });
+  const pct = req? Math.round(1000*delivered/req)/10 : 100.0;
+
+  const rows=[['staff','total','night','day_full','day_short','note']];
+  Object.entries(byStaff).forEach(([name,st])=>{
+    rows.push([name, st.total, st.night, st.dayFull, st.dayShort, '']);
+  });
+  const text = rows.map(r=> r.join('\t')).join('\n');
+  document.getElementById('summary').textContent =
+    text + `\nWeighted day coverage: ${pct}%` + (consecNight? `\nNote: Consecutive nights ${consecNight}` : '\nOK: No consecutive nights');
+}
+
+// ===== Validation CSV =====
+function buildValidationCSV(schedule, staffFull, staffShort, requests, weeklyNightCap, monthlyNightCap, shortWeight){
+  const rows=[[
+    'staff','total','night','day_full','day_short',
+    'weighted_day_coverage_pct','consec_night_2plus','day_after_night_violation',
+    'requested_off_days','satisfied_off_days','off_fulfillment_pct',
+    'weekly_night_cap','weekly_night_cap_violations','monthly_night_cap','monthly_night_cap_violation',
+    'required_slots_day','delivered_weighted_day'
+  ]];
+
+  const everyone=[...new Set([...staffFull, ...staffShort])];
+  const per=Object.fromEntries(everyone.map(n=>[n,{
+    total:0, night:0, dayFull:0, dayShort:0,
+    consecNight:0, dayAfterNight:0,
+    reqDays:0, offSatisfied:0,
+    nightByWeek:{}, monthlyNight:0
+  }]));
+
+  const isoWeek = d => {
+    const dt=new Date(d+'T00:00:00');
+    const date=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate()));
+    const dayNum=(date.getUTCDay()+6)%7; date.setUTCDate(date.getUTCDate()-dayNum+3);
+    const firstThu=new Date(Date.UTC(date.getUTCFullYear(),0,4));
+    const week=1+Math.round(((date-firstThu)/86400000 -3 + ((firstThu.getUTCDay()+6)%7))/7);
+    return `${date.getUTCFullYear()}-W${String(week).padStart(2,'0')}`;
+  };
+
+  let reqDay=0, deliveredWeighted=0;
+
+  for(let i=0;i<schedule.length;i++){
+    const cur=schedule[i]; const prev=schedule[i-1]||null;
+    const prevNight=new Set(prev?.night||[]);
+    const wk=isoWeek(cur.date);
+
+    reqDay += (cur.needDay||0);
+    deliveredWeighted += (cur.dayFull.length + shortWeight * cur.dayShort.length);
+
+    cur.dayFull.forEach(n=>{ per[n].total++; per[n].dayFull++; });
+    cur.dayShort.forEach(n=>{ per[n].total++; per[n].dayShort++; });
+    cur.night.forEach(n=>{
+      per[n].total++; per[n].night++; per[n].monthlyNight++;
+      per[n].nightByWeek[wk]=(per[n].nightByWeek[wk]||0)+1;
+      if(prevNight.has(n)) per[n].consecNight++;
+    });
+
+    if(prev){
+      cur.dayFull.forEach(n=>{ if(prevNight.has(n)) per[n].dayAfterNight++; });
+      cur.dayShort.forEach(n=>{ if(prevNight.has(n)) per[n].dayAfterNight++; });
+    }
+
+    const reqSet = requests[cur.date] || new Set();
+    everyone.forEach(n=>{
+      if(reqSet.has(n)){
+        per[n].reqDays++;
+        const assigned = cur.dayFull.includes(n) || cur.dayShort.includes(n) || cur.night.includes(n);
+        if(!assigned) per[n].offSatisfied++;
+      }
+    });
+  }
+
+  const weightedPct = reqDay? Math.round(1000*deliveredWeighted/reqDay)/10 : 100.0;
+
+  everyone.forEach(n=>{
+    const p=per[n];
+    const offPct = p.reqDays? Math.round(1000*p.offSatisfied/p.reqDays)/10 : 100.0;
+
+    let wkViol=0;
+    if(weeklyNightCap!=='' && weeklyNightCap!=null){
+      const cap=Number(weeklyNightCap)||0;
+      Object.values(p.nightByWeek).forEach(v=>{ if(v>cap) wkViol++; });
+    }
+    const mCap = (monthlyNightCap===''||monthlyNightCap==null)? null : Number(monthlyNightCap)||0;
+    const mViol = (mCap!=null) ? (p.monthlyNight>mCap?1:0) : 0;
+
+    rows.push([
+      n, p.total, p.night, p.dayFull, p.dayShort,
+      weightedPct, p.consecNight, p.dayAfterNight,
+      p.reqDays, p.offSatisfied, offPct,
+      (weeklyNightCap===''?'-':weeklyNightCap), wkViol,
+      (mCap==null?'-':mCap), mViol,
+      reqDay, Math.round(deliveredWeighted*10)/10
+    ]);
+  });
+
+  const bom=new Uint8Array([0xEF,0xBB,0xBF]);
+  const csv=rows.map(r=> r.map(v=> String(v).replaceAll('"','""'))
+                         .map(v=> /[",\n]/.test(v)? `"${v}"`: v).join(',')).join('\n');
+  return new Blob([bom,csv], {type:'text/csv;charset=utf-8;'});
+}
+
+// ===== Events =====
+let lastSchedule=null, lastEveryone=[];
+elBtnGen.addEventListener('click', ()=>{
+  const monthStart = parseMonthStr(elMonth.value);
+  const needDay = Number(elNeedDay.value||0);
+  const needNight = Number(elNeedNight.value||0);
+  const weeklyNightCap = Number(elWCap.value||0);
+  const monthlyNightCap = elMCap.value==='' ? '' : Number(elMCap.value||0);
+  const shortWeight = Math.max(0, Math.min(1, Number(elShortWeight.value||0.8)));
+
+  const staffFull=getStaffFull();
+  const staffShort=getStaffShort();
+  const requests=getRequests();
+
+  if(!monthStart){ elMsg.innerHTML='<span class="error">Enter the target month.</span>'; return; }
+  if(staffFull.length===0 && staffShort.length===0){ elMsg.innerHTML='<span class="error">Add at least one staff name.</span>'; return; }
+  if(needDay+needNight===0){ elMsg.innerHTML='<span class="warn">Required headcount is 0; you will get an empty schedule.</span>'; }
+
+  const { schedule, everyone } = assignMonthly({
+    monthStart, needDay, needNight, weeklyNightCap, monthlyNightCap,
+    staffFull, staffShort, requests, shortWeight
+  });
+  lastSchedule=schedule; lastEveryone=everyone;
+
+  renderTable(schedule);
+  renderSummary(schedule, staffFull, staffShort, shortWeight);
+
+  elBtnCsv.disabled=false;
+  elBtnIcsAll.disabled=false;
+  elBtnValidate.disabled=false;
+
+  elMsg.innerHTML='<span class="ok">Done. You can download CSV / ICS / Validation CSV.</span>';
+});
+
+elBtnCsv.addEventListener('click', ()=>{
+  if(!lastSchedule) return;
+  download('schedule_monthly_part4_en.csv', toCSVWide(lastSchedule));
+});
+elBtnIcsAll.addEventListener('click', ()=>{
+  if(!lastSchedule) return;
+  download('shift_monthly_part4_en.ics', buildICS(lastSchedule));
+});
+elBtnValidate.addEventListener('click', ()=>{
+  if(!lastSchedule) return;
+  const staffFull=getStaffFull(), staffShort=getStaffShort(), req=getRequests();
+  const shortWeight = Math.max(0, Math.min(1, Number(elShortWeight.value||0.8)));
+  download('validation_summary_part4_en.csv',
+    buildValidationCSV(lastSchedule, staffFull, staffShort, req,
+      elWCap.value, elMCap.value, shortWeight));
+});
+
+// Default: this month
+(function init(){
+  const now=new Date(); const ym=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  elMonth.value=ym;
+})();
+</script>
+</body>
+</html>

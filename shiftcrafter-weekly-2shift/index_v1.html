@@ -1,0 +1,1157 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>看護師シフト作成（単一HTML・検証集計のみ追加）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg-gradient:linear-gradient(180deg,#eef2ff 0%,#f8fafc 55%,#ffffff 100%);
+  --surface:#ffffff;
+  --surface-strong:#f1f5f9;
+  --border:#e2e8f0;
+  --text:#0f172a;
+  --text-muted:#475569;
+  --text-soft:#64748b;
+  --primary:#2563eb;
+  --accent:#059669;
+  --warn:#dc6803;
+}
+*{box-sizing:border-box;}
+body{
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+  margin:0;
+  color:var(--text);
+  background:var(--bg-gradient);
+  line-height:1.6;
+}
+header{
+  position:sticky;
+  top:0;
+  z-index:20;
+  background:rgba(255,255,255,.85);
+  border-bottom:1px solid rgba(226,232,240,.8);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.hero{
+  max-width:980px;
+  margin:0 auto;
+  padding:18px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+.hero h1{
+  margin:0 0 4px;
+  font-size:22px;
+  font-weight:700;
+  color:var(--text);
+}
+.hero p{
+  margin:0;
+  font-size:14px;
+  color:var(--text-soft);
+}
+.status-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 12px;
+  border-radius:999px;
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:.01em;
+  background:var(--surface-strong);
+  color:var(--text-muted);
+  border:1px solid rgba(226,232,240,.8);
+  white-space:nowrap;
+}
+.status-badge::before{
+  content:"";
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:currentColor;
+}
+.status-badge.ok{
+  background:rgba(5,150,105,.12);
+  color:var(--accent);
+  border-color:rgba(16,185,129,.3);
+}
+.status-badge.warn{
+  background:rgba(234,179,8,.15);
+  color:var(--warn);
+  border-color:rgba(234,179,8,.35);
+}
+main{
+  max-width:980px;
+  margin:0 auto;
+  padding:32px 16px 48px;
+  display:flex;
+  flex-direction:column;
+  gap:24px;
+}
+section{
+  background:var(--surface);
+  border-radius:18px;
+  padding:24px 24px 28px;
+  box-shadow:0 18px 45px rgba(15,23,42,.08);
+  border:1px solid rgba(226,232,240,.65);
+}
+h2{
+  margin:0 0 16px;
+  font-size:18px;
+  color:var(--text);
+}
+.grid{
+  display:grid;
+  gap:16px;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+}
+label{
+  font-size:13px;
+  color:var(--text-muted);
+  display:block;
+  margin-bottom:8px;
+  font-weight:600;
+}
+input[type=file]{
+  width:100%;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--surface-strong);
+  color:var(--text);
+}
+input[type=file]:focus{
+  outline:2px solid rgba(37,99,235,.3);
+  outline-offset:2px;
+}
+.actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  margin-top:18px;
+}
+button{
+  border:0;
+  border-radius:12px;
+  padding:12px 18px;
+  font-weight:600;
+  cursor:pointer;
+  font-size:14px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  transition:transform .15s ease,box-shadow .15s ease,background .15s ease;
+}
+button.primary{
+  background:var(--primary);
+  color:#fff;
+  box-shadow:0 10px 25px rgba(37,99,235,.28);
+}
+button.primary:hover{
+  transform:translateY(-1px);
+  box-shadow:0 14px 32px rgba(37,99,235,.32);
+}
+button.ghost{
+  background:#fff;
+  color:var(--primary);
+  border:1px solid rgba(37,99,235,.35);
+  box-shadow:0 4px 14px rgba(59,130,246,.15);
+}
+button.ghost:hover{
+  transform:translateY(-1px);
+  box-shadow:0 8px 22px rgba(59,130,246,.18);
+}
+button:focus-visible{
+  outline:2px solid rgba(37,99,235,.45);
+  outline-offset:2px;
+}
+.notice{
+  margin-top:12px;
+  padding:10px 12px;
+  border-radius:12px;
+  background:rgba(37,99,235,.08);
+  color:var(--text-soft);
+}
+.small{
+  font-size:12px;
+  color:var(--text-soft);
+}
+.summary{
+  font-size:14px;
+  color:var(--text-muted);
+}
+.downloads{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  margin:12px 0 18px;
+}
+a.dl{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  background:var(--accent);
+  color:#fff;
+  text-decoration:none;
+  padding:10px 16px;
+  border-radius:12px;
+  font-size:13px;
+  font-weight:600;
+  box-shadow:0 12px 28px rgba(5,150,105,.25);
+  transition:transform .15s ease,box-shadow .15s ease,background .15s ease;
+}
+a.dl:hover{
+  transform:translateY(-1px);
+  box-shadow:0 16px 28px rgba(5,150,105,.3);
+}
+a.dl.primary-link{
+  background:var(--primary);
+  box-shadow:0 12px 28px rgba(37,99,235,.3);
+}
+.table-preview{
+  border:1px solid rgba(226,232,240,.7);
+  border-radius:14px;
+  overflow:hidden;
+  background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%);
+}
+.table-preview .small{
+  padding:12px 16px;
+}
+.table-preview table{
+  width:100%;
+  border-collapse:collapse;
+}
+.table-preview th,
+.table-preview td{
+  border-bottom:1px solid rgba(226,232,240,.8);
+  padding:10px 14px;
+  font-size:13px;
+  text-align:left;
+  color:var(--text);
+}
+.table-preview th{
+  background:#f1f5f9;
+  font-weight:600;
+}
+.table-preview>p{
+  margin:0;
+  padding:14px 16px;
+}
+.log{
+  white-space:pre-wrap;
+  background:#0b1020;
+  color:#e2e8f0;
+  border-radius:12px;
+  padding:14px;
+  max-height:260px;
+  overflow:auto;
+  font-family:ui-monospace,Menlo,monospace;
+  font-size:12px;
+  box-shadow:inset 0 0 0 1px rgba(15,23,42,.6);
+}
+.ok{color:var(--accent);font-weight:700;}
+.warn{color:var(--warn);}
+@media (max-width:640px){
+  .hero{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+  section{
+    padding:20px 18px 24px;
+  }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hero">
+    <div>
+      <h1>看護師シフト作成（単一HTML）</h1>
+      <p>CSVを読み込み、オフラインで最適なシフト案をチェックできます。</p>
+    </div>
+    <span id="jsStatus" class="status-badge warn">未ロード</span>
+  </div>
+</header>
+<main>
+  <section>
+    <h2>1) CSVを選択</h2>
+    <div class="grid">
+      <div>
+        <label>職員マスタ（必須）</label>
+        <input id="f_staff" type="file" accept=".csv">
+        <div class="small">ヘッダーは日本語/大文字小文字/タブ/セミコロン区切りも可</div>
+      </div>
+      <div>
+        <label>休み希望（任意）</label>
+        <input id="f_req" type="file" accept=".csv">
+      </div>
+      <div>
+        <label>教育ペア（任意）</label>
+        <input id="f_pairs" type="file" accept=".csv">
+      </div>
+      <div>
+        <label>需要設定（任意）</label>
+        <input id="f_dem" type="file" accept=".csv">
+      </div>
+    </div>
+    <div class="actions">
+      <button class="ghost" onclick="run(true)">サンプルを読み込む</button>
+      <button class="primary" onclick="run(false)">シフト計算を実行</button>
+    </div>
+    <p class="notice small">このページはオフラインで完結し、外部送信しません。</p>
+  </section>
+
+  <section>
+    <h2>2) 結果</h2>
+    <div id="summary" class="summary">未実行</div>
+    <div class="downloads">
+      <a id="dlSchedule" class="dl" href="#" style="display:none">シフトCSVをダウンロード</a>
+      <a id="dlReport" class="dl primary-link" href="#" style="display:none">検証レポートをダウンロード</a>
+    </div>
+    <div id="preview" class="table-preview"></div>
+  </section>
+
+  <section>
+    <h2>ログ</h2>
+    <div id="log" class="log">準備完了</div>
+  </section>
+</main>
+
+<script>
+document.getElementById('jsStatus').textContent='ロード済み ✓';
+document.getElementById('jsStatus').className='status-badge ok';
+
+const DEFAULT_DAY_COUNT = 30;
+
+const SAMPLE_STAFF = `staff_id,name,sex,years,skills,max_shifts_per_week,max_night_per_week
+N01,佐藤A,F,0,"IV",5,2
+N02,鈴木B,F,4,"IV,CV",5,2
+N03,高橋C,M,3,"IV,WOUND",5,1
+N04,田中D,F,6,"IV,CV,WOUND",5,2
+N05,山本E,F,2,"IV",5,2
+N06,中村F,M,5,"IV,CV",5,2
+N07,小林G,F,1,"IV,WOUND",5,1
+N08,加藤H,F,3,"IV",5,2
+N09,井上I,F,4,"IV,CV",5,2
+N10,渡辺J,M,7,"IV,CV,WOUND",5,2
+N11,松本K,F,3,"IV,WOUND",5,1
+N12,西村L,F,2,"IV",5,1
+N13,藤田M,F,5,"IV,CV",5,2
+N14,長谷川N,M,6,"IV,CV,WOUND",5,2
+N15,近藤O,F,4,"IV,CV",5,2
+N16,石川P,F,3,"IV",5,2
+N17,清水Q,M,2,"IV,WOUND",5,1
+N18,山崎R,F,5,"IV,CV",5,2
+N19,阿部S,F,1,"IV",5,1
+N20,森田T,M,4,"IV,CV,WOUND",5,2
+N21,池田U,F,3,"IV,CV",5,2
+N22,橋本V,F,6,"IV,WOUND",5,2
+N23,山下W,M,2,"IV",5,1
+N24,石井X,F,4,"IV,CV",5,2
+N25,斎藤Y,F,5,"IV,CV,WOUND",5,2
+N26,三浦Z,F,3,"IV",5,2
+N27,岡本AA,M,4,"IV,CV",5,2
+N28,松田AB,F,2,"IV,WOUND",5,1
+N29,竹内AC,F,3,"IV,CV",5,2
+N30,杉山AD,M,5,"IV,CV,WOUND",5,2`;
+const SAMPLE_REQ = `staff_id,day,shift,request_type,weight
+N01,Day1,D,希望,3
+N03,Day2,,不可,10
+N05,Day3,N,希望,2
+N08,Day4,D,希望,2
+N10,Day5,N,希望,3
+N14,Day6,D,希望,2
+N18,Day7,,不可,8
+N21,Day8,N,希望,4
+N25,Day9,D,希望,3
+N28,Day10,D,希望,2
+N30,Day11,,不可,6`;
+const SAMPLE_PAIRS = `pair_id,mentee_id,mentor_id
+1,N07,N06
+2,N01,N02
+3,N09,N10
+4,N11,N04
+5,N12,N13
+6,N15,N14
+7,N18,N20
+8,N21,N17
+9,N24,N25
+10,N26,N23
+11,N28,N27
+12,N29,N30`;
+const SAMPLE_DEM = `day,D,N,min_cv_D,min_cv_N
+Day1,12,6,4,2
+Day2,12,6,4,2
+Day3,12,6,4,2
+Day4,12,6,4,2
+Day5,12,6,4,2
+Day6,12,6,4,2
+Day7,12,6,4,2
+Day8,12,6,4,2
+Day9,12,6,4,2
+Day10,12,6,4,2
+Day11,12,6,4,2
+Day12,12,6,4,2
+Day13,12,6,4,2
+Day14,12,6,4,2
+Day15,12,6,4,2
+Day16,12,6,4,2
+Day17,12,6,4,2
+Day18,12,6,4,2
+Day19,12,6,4,2
+Day20,12,6,4,2
+Day21,12,6,4,2
+Day22,12,6,4,2
+Day23,12,6,4,2
+Day24,12,6,4,2
+Day25,12,6,4,2
+Day26,12,6,4,2
+Day27,12,6,4,2
+Day28,12,6,4,2
+Day29,12,6,4,2
+Day30,12,6,4,2`;
+
+let currentScheduleCSV = '';
+let currentReportText = '';
+const dlScheduleEl = document.getElementById('dlSchedule');
+const dlReportEl = document.getElementById('dlReport');
+
+[dlScheduleEl, dlReportEl].forEach(el=>{
+  if(!el) return;
+  el.setAttribute('role','button');
+  el.setAttribute('href','javascript:void(0)');
+  el.removeAttribute('download');
+});
+
+function downloadBlob(content, mime, filename){
+  const blob = new Blob([content], {type: mime || 'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 200);
+}
+
+function attachDownload(el, getter, mime, filename){
+  if(!el) return;
+  el.addEventListener('click', ev=>{
+    ev.preventDefault();
+    ev.stopPropagation();
+    const data = getter();
+    if(!data){
+      alert('ダウンロード可能なデータがありません。先にシフト計算を実行してください。');
+      return;
+    }
+    downloadBlob(data, mime, filename);
+  });
+}
+
+attachDownload(dlScheduleEl, ()=>currentScheduleCSV, 'text/csv', 'schedule_output.csv');
+attachDownload(dlReportEl, ()=>currentReportText, 'text/plain', 'validation_report.txt');
+
+function log(m){ const el=document.getElementById('log'); el.textContent += "\n"+m; el.scrollTop=el.scrollHeight; }
+function readAsText(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result)); r.onerror=rej; r.readAsText(f,'utf-8'); }); }
+function detectDelim(first){ const cand=[",",";","\t"]; let best=",", nbest=0; for(const d of cand){ const n=(first.split(d).length-1); if(n>nbest){best=d; nbest=n;} } return nbest?best:","; }
+function parseCSV(text){
+  const first=(text.split(/\r?\n/)[0]||'').replace(/^\ufeff/,'');
+  const d=detectDelim(first);
+  const rows=[]; let field="", row=[], i=0, q=false;
+  while(i<=text.length){
+    const c=text[i]||"\n";
+    if(q){
+      if(c=='"'){ if(text[i+1]=='"'){field+='"'; i++;} else q=false; }
+      else field+=c;
+    }else{
+      if(c=='"') q=true;
+      else if(c==d){ row.push(field); field=""; }
+      else if(c=="\n"||c=="\r"){ if(c=="\r"&&text[i+1]=="\n") i++; row.push(field); field=""; if(row.some(x=>x!=='')) rows.push(row); row=[]; }
+      else field+=c;
+    }
+    i++;
+  }
+  return rows;
+}
+function headerMap(header){
+  const norm=s=>String(s||'').toLowerCase().replace(/^\ufeff/,'').trim().replace(/\s+/g,'').replace(/　/g,'').replace(/[＿]/g,'_').replace(/-/g,'_');
+  const idx={}; header.forEach((h,i)=>idx[norm(h)]=i);
+  const aliases={
+    staff_id:['staff_id','id','worker_id','職員id','スタッフid'],
+    name:['name','氏名','名前'],
+    sex:['sex','gender','性別'],
+    years:['years','experience','exp_years','経験年数','年数'],
+    skills:['skills','skill','スキル'],
+    max_shifts_per_week:['max_shifts_per_week','max_shifts','週勤務上限'],
+    max_night_per_week:['max_night_per_week','max_nights_week','夜勤上限']
+  };
+  const out={}; const missing=[];
+  for(const k in aliases){
+    out[k]=null;
+    for(const a of aliases[k]){ const n=norm(a); if(idx[n]!==undefined){ out[k]=idx[n]; break; } }
+    if(out[k]===null) missing.push(k);
+  }
+  return {out, missing};
+}
+function csvToObjectsStaff(text){
+  const rows=parseCSV(text); if(!rows.length) return [];
+  const {out:map, missing}=headerMap(rows[0]);
+  if(missing.length) throw new Error("職員マスタの不足列: "+missing.join(", "));
+  const arr=[];
+  for(let r=1;r<rows.length;r++){
+    const t=rows[r]; if(!t || (t.length===1 && String(t[0]).trim()==='')) continue;
+    arr.push({
+      staff_id: String(t[map.staff_id]||'').trim(),
+      name: String(t[map.name]||'').trim(),
+      sex: String(t[map.sex]||'').trim(),
+      years: String(t[map.years]||'').trim(),
+      skills: String(t[map.skills]||'').trim(),
+      max_shifts_per_week: String(t[map.max_shifts_per_week]||'').trim(),
+      max_night_per_week: String(t[map.max_night_per_week]||'').trim()
+    });
+  }
+  return arr;
+}
+function csvToObjects(text, expected){
+  const rows=parseCSV(text); if(!rows.length) return [];
+  const norm=s=>String(s||'').toLowerCase().replace(/^\ufeff/,'').trim().replace(/\s+/g,'').replace(/　/g,'');
+  const headIdx={}; rows[0].forEach((h,i)=>headIdx[norm(h)]=i);
+  const idx=expected.map(k=> headIdx[norm(k)]);
+  const arr=[];
+  for(let r=1;r<rows.length;r++){
+    const t=rows[r]; if(!t || (t.length===1 && String(t[0]).trim()==='')) continue;
+    const o={}; expected.forEach((k,ci)=> o[k]= String(t[idx[ci]]??'').trim() ); arr.push(o);
+  }
+  return arr;
+}
+function toCSV(objs){
+  if(!objs.length) return "";
+  const keys=Object.keys(objs[0]);
+  const esc=s=> /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  const lines=[keys.join(',')];
+  for(const o of objs){ lines.push(keys.map(k=>esc(String(o[k]??''))).join(',')); }
+  return lines.join('\n');
+}
+// ==== v5ベースのスケジューラ + 検証集計の追記のみ ====
+function schedule(staff, requests, pairs, demand){
+  const days=demand.days, req=demand.req, minCV=demand.minCV;
+  const idx={}; staff.forEach((s,i)=>idx[s.staff_id]=i);
+  const hasCV={}; staff.forEach(s=> hasCV[s.staff_id]=(String(s.skills||'').toUpperCase().split(',').map(x=>x.trim()).includes('CV')) );
+  const asg={};
+  staff.forEach(s=>{
+    const maxShift=parseInt(s.max_shifts_per_week||'',10);
+    const maxNight=parseInt(s.max_night_per_week||'',10);
+    asg[s.staff_id]={
+      total:0,
+      N:0,
+      last:{},
+      week:new Map(),
+      weekN:new Map(),
+      maxShift:isNaN(maxShift)?Infinity:maxShift,
+      maxNight:isNaN(maxNight)?Infinity:maxNight
+    };
+  });
+
+  const weekIndex = di => Math.floor(di/7);
+  function recordAssignment(state, sid, di, shift){
+    const entry=state[sid];
+    const week=weekIndex(di);
+    entry.total++;
+    entry.week.set(week,(entry.week.get(week)||0)+1);
+    if(shift==='N'){
+      entry.N++;
+      entry.weekN.set(week,(entry.weekN.get(week)||0)+1);
+    }
+    entry.last[days[di]]=shift;
+  }
+
+  const blockAll=new Set(), blockShift=new Set(), wish=new Map();
+  for(const r of (requests||[])){
+    const sid=r.staff_id, d=r.day, sh=(r.shift||'').toUpperCase(), t=(r.request_type||'').trim(), w=parseInt(r.weight||'3',10);
+    if(t==='不可'){ if(sh==='D'||sh==='N') blockShift.add(`${sid}|${d}|${sh}`); else blockAll.add(`${sid}|${d}`); }
+    else if(t==='希望' && (sh==='D'||sh==='N')) wish.set(`${sid}|${d}|${sh}`, isNaN(w)?3:w);
+  }
+
+  const out=[];
+  function canAssign(state, sid, di, sh, opts){
+    const day=days[di];
+    const entry=state[sid];
+    if(!entry) return false;
+    const options = opts||{};
+    if(!options.ignoreBlockAll && blockAll.has(`${sid}|${day}`)) return false;
+    if(!options.ignoreBlockShift && blockShift.has(`${sid}|${day}|${sh}`)) return false;
+    if(entry.last[day]) return false;
+    const week=weekIndex(di);
+    if(!options.ignoreWeekLimit){
+      const weekTotal=entry.week.get(week)||0;
+      if(entry.maxShift!==Infinity && weekTotal>=entry.maxShift) return false;
+    }
+    if(di>0 && entry.last[days[di-1]]==='N' && !options.ignoreNightRest) return false;
+    if(sh==='N' && !options.ignoreNightLimit){
+      const weekNight=entry.weekN.get(week)||0;
+      if(entry.maxNight!==Infinity && weekNight>=entry.maxNight) return false;
+    }
+    return true;
+  }
+  const totalReq = req.D.reduce((a,b)=>a+b,0)+req.N.reduce((a,b)=>a+b,0);
+  const avgPerStaff = totalReq / Math.max(1,staff.length);
+  const totalN=req.N.reduce((a,b)=>a+b,0), avgN = totalN/Math.max(1,staff.length);
+  function scD(sid,day){ const fair=Math.max(0, avgPerStaff - asg[sid].total); const w=wish.get(`${sid}|${day}|D`)||0; const cv=hasCV[sid]?0.2:0; return fair+w+cv; }
+  function scN(sid,day){ const fair=Math.max(0, avgN - asg[sid].N); const w=wish.get(`${sid}|${day}|N`)||0; return fair+w; }
+
+  for(let di=0; di<days.length; di++){
+    const day=days[di]; let needD=req.D[di], needN=req.N[di];
+    const dayAsg=new Set();
+    for(const p of (pairs||[])){
+      if(needD<=1) break;
+      const a=p.mentee_id, b=p.mentor_id;
+      if(idx[a]==null || idx[b]==null) continue;
+      if(canAssign(asg,a,di,'D') && canAssign(asg,b,di,'D')){
+        for(const sid of [a,b]){
+          out.push({day,shift:'D',staff_id:sid});
+          recordAssignment(asg, sid, di, 'D');
+          dayAsg.add(sid);
+        }
+        needD -= 2;
+      }
+    }
+    let curCV=[...dayAsg].filter(sid=>hasCV[sid]).length;
+    let needCV=Math.max(0,(minCV.D||0)-curCV);
+    const candsD=staff.map(s=>s.staff_id).filter(sid=>!dayAsg.has(sid) && canAssign(asg,sid,di,'D')).sort((a,b)=>scD(b,day)-scD(a,day));
+    for(const sid of candsD){
+      if(needD<=0 || needCV<=0) break;
+      if(hasCV[sid]){
+        out.push({day,shift:'D',staff_id:sid});
+        recordAssignment(asg, sid, di, 'D');
+        dayAsg.add(sid);
+        needD--;
+        needCV--;
+      }
+    }
+    for(const sid of candsD){
+      if(needD<=0) break;
+      if(dayAsg.has(sid)) continue;
+      out.push({day,shift:'D',staff_id:sid});
+      recordAssignment(asg, sid, di, 'D');
+      dayAsg.add(sid);
+      needD--;
+    }
+    if(needD>0){
+      const flexD = staff.map(s=>s.staff_id)
+        .filter(sid=>!dayAsg.has(sid) && canAssign(asg,sid, di, 'D', {ignoreWeekLimit:true}))
+        .sort((a,b)=>scD(b, day)-scD(a, day));
+      for(const sid of flexD){
+        if(needD<=0) break;
+        out.push({day,shift:'D',staff_id:sid});
+        recordAssignment(asg, sid, di, 'D');
+        dayAsg.add(sid);
+        needD--;
+      }
+    }
+    if(needD>0){
+      const emergencyD = staff.map(s=>s.staff_id)
+        .filter(sid=>!dayAsg.has(sid) && canAssign(asg,sid, di, 'D', {ignoreWeekLimit:true}))
+        .sort((a,b)=>scD(b, day)-scD(a, day));
+      for(const sid of emergencyD){
+        if(needD<=0) break;
+        out.push({day,shift:'D',staff_id:sid});
+        recordAssignment(asg, sid, di, 'D');
+        dayAsg.add(sid);
+        needD--;
+      }
+    }
+    if(needD>0){
+      const forcedD = staff.map(s=>s.staff_id)
+        .filter(sid=>!dayAsg.has(sid) && canAssign(asg,sid, di, 'D', {ignoreWeekLimit:true, ignoreBlockShift:true}))
+        .sort((a,b)=>scD(b, day)-scD(a, day));
+      for(const sid of forcedD){
+        if(needD<=0) break;
+        out.push({day,shift:'D',staff_id:sid});
+        recordAssignment(asg, sid, di, 'D');
+        dayAsg.add(sid);
+        needD--;
+      }
+    }
+    if(needD>0){
+      const lastResortD = staff.map(s=>s.staff_id)
+        .filter(sid=>!dayAsg.has(sid) && canAssign(asg,sid, di, 'D', {ignoreWeekLimit:true, ignoreBlockShift:true, ignoreBlockAll:true}))
+        .sort((a,b)=>scD(b, day)-scD(a, day));
+      for(const sid of lastResortD){
+        if(needD<=0) break;
+        out.push({day,shift:'D',staff_id:sid});
+        recordAssignment(asg, sid, di, 'D');
+        dayAsg.add(sid);
+        needD--;
+      }
+    }
+
+    const usedN=new Set(); let curCVN=0;
+    const candsN=staff.map(s=>s.staff_id).filter(sid=>canAssign(asg,sid,di,'N')).sort((a,b)=>scN(b,day)-scN(a,day));
+    for(const sid of candsN){
+      if(needN<=0) break;
+      const needCVN=Math.max(0,(minCV.N||0)-curCVN);
+      const isCV=!!hasCV[sid];
+      if(needCVN>0 && !isCV) continue;
+      out.push({day,shift:'N',staff_id:sid});
+      recordAssignment(asg, sid, di, 'N');
+      if(isCV) curCVN++;
+      needN--;
+      usedN.add(sid);
+    }
+    if(needN>0){
+      for(const sid of candsN){
+        if(needN<=0) break;
+        if(usedN.has(sid)) continue;
+        out.push({day,shift:'N',staff_id:sid});
+        recordAssignment(asg, sid, di, 'N');
+        needN--;
+      }
+    }
+    if(needN>0){
+      const flexN = staff.map(s=>s.staff_id)
+        .filter(sid=>!usedN.has(sid) && canAssign(asg,sid, di, 'N', {ignoreWeekLimit:true}))
+        .sort((a,b)=>scN(b, day)-scN(a, day));
+      for(const sid of flexN){
+        if(needN<=0) break;
+        out.push({day,shift:'N',staff_id:sid});
+        recordAssignment(asg, sid, di, 'N');
+        needN--;
+        usedN.add(sid);
+      }
+    }
+    if(needN>0){
+      const emergencyN = staff.map(s=>s.staff_id)
+        .filter(sid=>!usedN.has(sid) && canAssign(asg,sid, di, 'N', {ignoreWeekLimit:true, ignoreNightLimit:true}))
+        .sort((a,b)=>scN(b, day)-scN(a, day));
+      for(const sid of emergencyN){
+        if(needN<=0) break;
+        out.push({day,shift:'N',staff_id:sid});
+        recordAssignment(asg, sid, di, 'N');
+        needN--;
+        usedN.add(sid);
+      }
+    }
+    if(needN>0){
+      const forcedN = staff.map(s=>s.staff_id)
+        .filter(sid=>!usedN.has(sid) && canAssign(asg,sid, di, 'N', {ignoreWeekLimit:true, ignoreNightLimit:true, ignoreBlockShift:true}))
+        .sort((a,b)=>scN(b, day)-scN(a, day));
+      for(const sid of forcedN){
+        if(needN<=0) break;
+        out.push({day,shift:'N',staff_id:sid});
+        recordAssignment(asg, sid, di, 'N');
+        needN--;
+        usedN.add(sid);
+      }
+    }
+    if(needN>0){
+      const lastResortN = staff.map(s=>s.staff_id)
+        .filter(sid=>!usedN.has(sid) && canAssign(asg,sid, di, 'N', {ignoreWeekLimit:true, ignoreNightLimit:true, ignoreBlockShift:true, ignoreBlockAll:true}))
+        .sort((a,b)=>scN(b, day)-scN(a, day));
+      for(const sid of lastResortN){
+        if(needN<=0) break;
+        out.push({day,shift:'N',staff_id:sid});
+        recordAssignment(asg, sid, di, 'N');
+        needN--;
+        usedN.add(sid);
+      }
+    }
+  }
+
+  const dayIndex = new Map(days.map((d,i)=>[d,i]));
+  function buildState(records){
+    const state={};
+    staff.forEach(s=>{
+      const maxShift=parseInt(s.max_shifts_per_week||'',10);
+      const maxNight=parseInt(s.max_night_per_week||'',10);
+      state[s.staff_id]={
+        total:0,
+        N:0,
+        last:{},
+        week:new Map(),
+        weekN:new Map(),
+        maxShift:isNaN(maxShift)?Infinity:maxShift,
+        maxNight:isNaN(maxNight)?Infinity:maxNight
+      };
+    });
+    for(const rec of records){
+      if(rec.shift!=='D' && rec.shift!=='N') continue;
+      const di=dayIndex.get(rec.day);
+      if(di==null) continue;
+      recordAssignment(state, rec.staff_id, di, rec.shift);
+    }
+    return state;
+  }
+  function buildCalendar(records){
+    const calendar = new Map();
+    staff.forEach(s=>calendar.set(s.staff_id,new Map()));
+    for(const rec of records){
+      const map = calendar.get(rec.staff_id);
+      if(map) map.set(rec.day, rec.shift);
+    }
+    return calendar;
+  }
+  function buildNightRest(calendar){
+    const result=new Map();
+    staff.forEach(s=>{
+      const restSet=new Set();
+      const dayMap=calendar.get(s.staff_id)||new Map();
+      for(let i=0;i<days.length;i++){
+        const day=days[i];
+        if(dayMap.get(day)==='N' && i+1<days.length){
+          restSet.add(days[i+1]);
+        }
+      }
+      result.set(s.staff_id, restSet);
+    });
+    return result;
+  }
+  function computeRegularOffFromCalendar(calendar, nightRestMap){
+    const result=new Map();
+    staff.forEach(s=>{
+      const restSet=nightRestMap.get(s.staff_id)||new Set();
+      const dayMap=calendar.get(s.staff_id)||new Map();
+      const regular=[];
+      for(const day of days){
+        const shift=dayMap.get(day);
+        if(shift==='D' || shift==='N') continue;
+        if(restSet.has(day) && shift!=='有給') continue;
+        regular.push(day);
+      }
+      result.set(s.staff_id, regular);
+    });
+    return result;
+  }
+  const optionSequenceDay = [
+    {},
+    {ignoreWeekLimit:true},
+    {ignoreWeekLimit:true, ignoreBlockShift:true},
+    {ignoreWeekLimit:true, ignoreBlockShift:true, ignoreBlockAll:true}
+  ];
+  const optionSequenceNight = [
+    {},
+    {ignoreWeekLimit:true},
+    {ignoreWeekLimit:true, ignoreNightLimit:true},
+    {ignoreWeekLimit:true, ignoreNightLimit:true, ignoreBlockShift:true},
+    {ignoreWeekLimit:true, ignoreNightLimit:true, ignoreBlockShift:true, ignoreBlockAll:true}
+  ];
+  const MIN_REGULAR_OFF = 8;
+
+  function rebalance(records){
+    let base = records.slice();
+    let iterations = 0;
+    while(iterations < 200){
+      iterations++;
+      const state = buildState(base);
+      const calendar = buildCalendar(base);
+      const nightRest = buildNightRest(calendar);
+      const regular = computeRegularOffFromCalendar(calendar, nightRest);
+      const shortage = staff.filter(s=>(regular.get(s.staff_id)||[]).length < MIN_REGULAR_OFF);
+      if(!shortage.length){
+        return {records: base, calendar, nightRest, regular};
+      }
+      let adjusted = false;
+      for(const target of shortage){
+        const dayMap = calendar.get(target.staff_id)||new Map();
+        const tryShifts = ['D','N'];
+        for(const shift of tryShifts){
+          const candidateDays = days.filter(day=>dayMap.get(day)===shift);
+          for(const day of candidateDays){
+            const idx = base.findIndex(r=>r.staff_id===target.staff_id && r.day===day && r.shift===shift);
+            if(idx<0) continue;
+            const removed = base.splice(idx,1)[0];
+            const stateAfterRemoval = buildState(base);
+            const calendarAfterRemoval = buildCalendar(base);
+            const nightRestAfterRemoval = buildNightRest(calendarAfterRemoval);
+            const regularAfterRemoval = computeRegularOffFromCalendar(calendarAfterRemoval, nightRestAfterRemoval);
+            const candidates = staff
+              .filter(s=>s.staff_id!==target.staff_id)
+              .filter(s=>!(calendarAfterRemoval.get(s.staff_id)||new Map()).has(day))
+              .sort((a,b)=>(regularAfterRemoval.get(b.staff_id)||[]).length - (regularAfterRemoval.get(a.staff_id)||[]).length);
+            const di = dayIndex.get(day);
+            let reassigned=false;
+            for(const donor of candidates){
+              const donorRegular = (regularAfterRemoval.get(donor.staff_id)||[]).length;
+              if(donorRegular<=MIN_REGULAR_OFF) continue;
+              const restSet = nightRestAfterRemoval.get(donor.staff_id)||new Set();
+              if(restSet.has(day)) continue;
+              const optionList = shift==='D' ? optionSequenceDay : optionSequenceNight;
+              let assigned=false;
+              for(const opts of optionList){
+                if(canAssign(stateAfterRemoval, donor.staff_id, di, shift, opts)){
+                  base.push({day, shift, staff_id:donor.staff_id});
+                  assigned=true;
+                  break;
+                }
+              }
+              if(assigned){
+                reassigned=true;
+                break;
+              }
+            }
+            if(!reassigned){
+              base.splice(idx,0,removed);
+            }else{
+              adjusted=true;
+              break;
+            }
+          }
+          if(adjusted) break;
+        }
+        if(adjusted) break;
+      }
+      if(!adjusted){
+        return {records: base, calendar, nightRest, regular};
+      }
+    }
+    const calendar = buildCalendar(base);
+    const nightRest = buildNightRest(calendar);
+    const regular = computeRegularOffFromCalendar(calendar, nightRest);
+    return {records: base, calendar, nightRest, regular};
+  }
+
+  const balanceResult = rebalance(out);
+  out.length = 0;
+  balanceResult.records.forEach(r=>out.push(r));
+  let calendar = balanceResult.calendar;
+  let nightRestMap = balanceResult.nightRest;
+  let regularOffMap = balanceResult.regular;
+
+  const staffMap = new Map(staff.map(s=>[s.staff_id,s]));
+  const paidLeaveDays = new Map();
+  staff.forEach(s=>paidLeaveDays.set(s.staff_id, []));
+
+  const paidLeaveRecords = [];
+  staff.forEach(s=>{
+    const regular = regularOffMap.get(s.staff_id)||[];
+    if(regular.length>=9){
+      const leaveDay = regular[0];
+      const dayMap = calendar.get(s.staff_id);
+      if(dayMap && !dayMap.has(leaveDay)){
+        const base = staffMap.get(s.staff_id)||{};
+        paidLeaveRecords.push({
+          day: leaveDay,
+          shift: '有給',
+          staff_id: s.staff_id,
+          name: base.name,
+          years: base.years,
+          skills: base.skills,
+          note: '有給休暇'
+        });
+        paidLeaveDays.get(s.staff_id).push(leaveDay);
+        dayMap.set(leaveDay, '有給');
+      }
+    }
+  });
+  regularOffMap = computeRegularOffFromCalendar(calendar, nightRestMap);
+    staff.forEach(s=>{
+    let regular = regularOffMap.get(s.staff_id)||[];
+    if(regular.length>=MIN_REGULAR_OFF) return;
+    const dayMap = calendar.get(s.staff_id)||new Map();
+    const restSet = nightRestMap.get(s.staff_id)||new Set();
+    const ordered = days
+      .filter(day=>{ const shift=dayMap.get(day); return shift!=='D' && shift!=='N'; })
+      .map(day=>({day, priority: restSet.has(day)?1:0}));
+    ordered.sort((a,b)=>a.priority-b.priority);
+    let updated = regular.slice();
+    for(const item of ordered){
+      const day=item.day;
+      if(dayMap.get(day)==='有給') continue;
+      const base = staffMap.get(s.staff_id)||{};
+      paidLeaveRecords.push({
+        day,
+        shift: '有給',
+        staff_id: s.staff_id,
+        name: base.name,
+        years: base.years,
+        skills: base.skills,
+        note: '有給休暇'
+      });
+      paidLeaveDays.get(s.staff_id).push(day);
+      dayMap.set(day, '有給');
+      updated.push(day);
+      if(updated.length>=MIN_REGULAR_OFF) break;
+    }
+    regularOffMap.set(s.staff_id, updated);
+  });
+  regularOffMap = computeRegularOffFromCalendar(calendar, nightRestMap);
+
+  if(paidLeaveRecords.length){
+    paidLeaveRecords.forEach(rec=>out.push(rec));
+    regularOffMap = computeRegularOffFromCalendar(calendar, nightRestMap);
+  }
+
+  const dayOrder = new Map(days.map((d,i)=>[d,i]));
+  const shiftOrder = {D:0,N:1,有給:2};
+  out.sort((a,b)=>{
+    const da = dayOrder.get(a.day) ?? 1e9;
+    const db = dayOrder.get(b.day) ?? 1e9;
+    if(da!==db) return da-db;
+    const sa = shiftOrder[a.shift] ?? 50;
+    const sb = shiftOrder[b.shift] ?? 50;
+    if(sa!==sb) return sa-sb;
+    return String(a.staff_id||'').localeCompare(String(b.staff_id||''));
+  });
+  out.forEach(r=>{
+    const base = staffMap.get(r.staff_id)||{};
+    r.name = base.name;
+    r.years = base.years;
+    r.skills = base.skills;
+    if(r.note===undefined) r.note='';
+  });
+
+  // ---- ここから：検証集計（追加） ----
+  const byKey = new Map();
+  for(const r of out){
+    const k=`${r.day}|${r.shift}`;
+    if(!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(r);
+  }
+  const rep=[];
+
+  // 既存の日別出力
+  for(let di=0;di<days.length;di++){
+    for(const sh of ['D','N']){
+      const k=`${days[di]}|${sh}`;
+      const assigned=(byKey.get(k)||[]);
+      const cvn = assigned.filter(x=>String(x.skills||'').toUpperCase().split(',').map(y=>y.trim()).includes('CV')).length;
+      rep.push(`${days[di]} ${sh}: required=${req[sh][di]} assigned=${assigned.length}`);
+      rep.push(`${days[di]} ${sh}: min_CV=${minCV[sh]} actual_CV=${cvn}`);
+    }
+  }
+
+  // 追加：集計
+  let demandOK=0, cvOK=0;
+  const totalSlots=days.length*2;
+  for(let di=0; di<days.length; di++){
+    for(const sh of ['D','N']){
+      const k=`${days[di]}|${sh}`;
+      const assignedCnt=(byKey.get(k)||[]).length;
+      const cvCnt=(byKey.get(k)||[]).filter(x=>String(x.skills||'').toUpperCase().split(',').map(y=>y.trim()).includes('CV')).length;
+      if(assignedCnt===req[sh][di]) demandOK++;
+      if(cvCnt>=(minCV[sh]||0)) cvOK++;
+    }
+  }
+  let wishTotal=0,wishHit=0,wishW=0,wishWHit=0;
+  let blockTotal=0,blockOK=0;
+  for(const r of (requests||[])){
+    const sid=r.staff_id, day=r.day, sh=(r.shift||'').toUpperCase(), t=(r.request_type||'').trim(), w=parseInt(r.weight||'3',10);
+    if(t==='希望' && (sh==='D'||sh==='N')){
+      wishTotal++; wishW += isNaN(w)?0:w;
+      const key=`${day}|${sh}`;
+      const hit=(byKey.get(key)||[]).some(x=>x.staff_id===sid);
+      if(hit){ wishHit++; wishWHit += isNaN(w)?0:w; }
+    }else if(t==='不可'){
+      blockTotal++;
+      if(sh==='D'||sh==='N'){
+        const key=`${day}|${sh}`;
+        const ok = !((byKey.get(key)||[]).some(x=>x.staff_id===sid));
+        if(ok) blockOK++;
+      }else{
+        const ok = !(['D','N'].some(S=> (byKey.get(`${day}|${S}`)||[]).some(x=>x.staff_id===sid) ));
+        if(ok) blockOK++;
+      }
+    }
+  }
+
+  let pairsDays=0, pairsHit=0;
+  for(const p of (pairs||[])){
+    for(const day of days){
+      pairsDays++;
+      const dlist=(byKey.get(`${day}|D`)||[]);
+      const hit = dlist.some(x=>x.staff_id===p.mentee_id) && dlist.some(x=>x.staff_id===p.mentor_id);
+      if(hit) pairsHit++;
+    }
+  }
+
+  rep.push("");
+  rep.push("=== 勤務者休暇状況 ===");
+  staff.forEach(s=>{
+    const restSet = nightRestMap.get(s.staff_id)||new Set();
+    const regular = regularOffMap.get(s.staff_id)||[];
+    const leave = paidLeaveDays.get(s.staff_id)||[];
+    const effectiveOff = regular.length + leave.length;
+    rep.push(`${s.staff_id} ${(s.name||'')}: 通常休み=${regular.length}日 有給=${leave.length}日 夜勤明け休=${restSet.size}日 合計=${effectiveOff}日`);
+    if(effectiveOff<MIN_REGULAR_OFF){
+      rep.push(`WARNING: ${s.staff_id} の通常休みが規定未達 (${effectiveOff}/${MIN_REGULAR_OFF}日)`);
+    }
+  });
+
+  rep.push("=== 集計 ===");
+  rep.push(`需要充足: ${demandOK}/${totalSlots} (${Math.round(100*demandOK/Math.max(1,totalSlots))}%)`);
+  rep.push(`CV下限充足: ${cvOK}/${totalSlots} (${Math.round(100*cvOK/Math.max(1,totalSlots))}%)`);
+  rep.push(`希望充足: ${wishHit}/${wishTotal} (${wishTotal?Math.round(100*wishHit/wishTotal):100}%) | 加重充足: ${wishWHit}/${wishW}`);
+  rep.push(`不可遵守: ${blockOK}/${blockTotal} (${blockTotal?Math.round(100*blockOK/blockTotal):100}%)`);
+  rep.push(`教育ペア同日D: ${pairsHit}/${pairsDays} (${pairsDays?Math.round(100*pairsHit/pairsDays):100}%)`);
+  // ---- 追加ここまで ----
+
+  return {schedule: out, report: rep.join("\n")};
+}
+
+function renderPreview(rows){
+  const el=document.getElementById('preview');
+  if(!rows.length){ el.innerHTML='<p class="warn">割当が作成できませんでした。</p>'; return; }
+  const cols=['day','shift','staff_id','name','years','skills','note'];
+  const head='<tr>'+cols.map(c=>`<th>${c}</th>`).join('')+'</tr>';
+  const body=rows.slice(0,100).map(r=>'<tr>'+cols.map(c=>`<td>${r[c]??''}</td>`).join('')+'</tr>').join('');
+  el.innerHTML = `<div class="small">先頭 ${Math.min(100,rows.length)} / 全${rows.length}行</div><table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+async function gather(useSamples){
+  const fs=document.getElementById('f_staff'), fr=document.getElementById('f_req'), fp=document.getElementById('f_pairs'), fd=document.getElementById('f_dem');
+  let sTxt, rTxt='', pTxt='', dTxt='';
+  if(useSamples){ sTxt=SAMPLE_STAFF; rTxt=SAMPLE_REQ; pTxt=SAMPLE_PAIRS; dTxt=SAMPLE_DEM; }
+  else{
+    if(!fs.files.length) throw new Error('職員マスタCSVが選択されていません。');
+    sTxt = await readAsText(fs.files[0]);
+    if(fr.files.length) rTxt = await readAsText(fr.files[0]);
+    if(fp.files.length) pTxt = await readAsText(fp.files[0]);
+    if(fd.files.length) dTxt = await readAsText(fd.files[0]);
+  }
+  const staff = csvToObjectsStaff(sTxt);
+  const reqs = rTxt ? csvToObjects(rTxt, ['staff_id','day','shift','request_type','weight']) : [];
+  const pairs = pTxt ? csvToObjects(pTxt, ['pair_id','mentee_id','mentor_id']) : [];
+  let days = Array.from({length: DEFAULT_DAY_COUNT}, (_, i) => `Day${i+1}`);
+  let D = new Array(DEFAULT_DAY_COUNT).fill(10);
+  let N = new Array(DEFAULT_DAY_COUNT).fill(6);
+  let minD = 2, minN = 1;
+  if(dTxt){
+    const dem = csvToObjects(dTxt, ['day','D','N','min_cv_D','min_cv_N']);
+    if(dem.length){ days = dem.map(x=>x.day); D = dem.map(x=>parseInt(x.D||'0',10)); N = dem.map(x=>parseInt(x.N||'0',10));
+      if(dem[0].min_cv_D) minD=parseInt(dem[0].min_cv_D,10); if(dem[0].min_cv_N) minN=parseInt(dem[0].min_cv_N,10); }
+  }
+  return {staff, reqs, pairs, demand:{days, req:{D,N}, minCV:{D:minD, N:minN}}};
+}
+
+async function run(useSamples){
+  const sum=document.getElementById('summary');
+  try{
+    const {staff, reqs, pairs, demand} = await gather(useSamples);
+    log(`読み込み完了: staff=${staff.length}, requests=${reqs.length}, pairs=${pairs.length}, days=${demand.days.length}`);
+    const res = schedule(staff, reqs, pairs, demand);
+    renderPreview(res.schedule);
+    sum.textContent = `完了: 割当=${res.schedule.length} 行`;
+    currentScheduleCSV = toCSV(res.schedule);
+    currentReportText = res.report;
+    if(dlScheduleEl) dlScheduleEl.style.display = 'inline-flex';
+    if(dlReportEl) dlReportEl.style.display = 'inline-flex';
+  }catch(e){
+    sum.textContent = "エラー: " + e.message;
+    log("エラー: " + e.message);
+    alert("エラー: " + e.message);
+    currentScheduleCSV = '';
+    currentReportText = '';
+    if(dlScheduleEl) dlScheduleEl.style.display = 'none';
+    if(dlReportEl) dlReportEl.style.display = 'none';
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: デモ（GitHub Pages）
+    url: https://rehab-datascience.github.io/shiftcrafter-monthly-2shift/
+    about: まずは挙動確認にどうぞ
+  - name: 週次版（参考）
+    url: https://rehab-datascience.github.io/shiftcrafter-weekly-2shift/
+    about: 入力・出力仕様の参考に

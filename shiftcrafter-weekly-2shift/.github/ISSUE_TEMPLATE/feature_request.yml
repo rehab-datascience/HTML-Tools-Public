@@ -1,0 +1,58 @@
+name: ✨ 機能要望 / Feature request
+description: 追加したい機能・改善点の提案（個人情報や施設固有情報は含めないでください）
+title: "[Feature]: "
+labels: ["enhancement"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        新機能や改善のご提案ありがとうございます。
+        公開リポジトリです。**個人情報・実患者データ・施設固有情報は書かない**でください。
+  - type: checkboxes
+    id: dupcheck
+    attributes:
+      label: 事前確認
+      options:
+        - label: 既存Issueを検索し、重複でないことを確認しました
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 解決したい課題（現場の困りごと）
+      placeholder: 例) 月間の予定配布が大変で、各職員へカレンダーで配布したい
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提案する解決策（UI案・出力形式など）
+      placeholder: 例) 各職員ごとのICS書き出し（Google/Outlook取込）
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 対象領域（該当するものにチェック）
+      options:
+        - label: 二交代（週次・Part 1）
+        - label: 二交代（月次/ICS・Part 2）
+        - label: 三交代（早/日/夜・Part 3）
+        - label: 早出/遅出（時刻制約・Part 5）
+        - label: 時短（個別所定時間・Part 4）
+        - label: ロール/技能（混成・Part 6）
+  - type: textarea
+    id: impact
+    attributes:
+      label: 期待される効果（誰の何分を短縮？どの場面で有効？）
+      placeholder: 例) 師長の月次調整を毎月60分短縮、夜勤回数の偏りを可視化
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 代替案・暫定回避策（あれば）
+  - type: textarea
+    id: context
+    attributes:
+      label: 追加情報（スクリーンショットURL・参考資料など）

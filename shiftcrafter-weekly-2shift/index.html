@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>看護師シフト作成（単一HTML v5r・検証集計のみ追加）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f8fafc;color:#0f172a}
+header{position:sticky;top:0;background:#fff;padding:12px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+h1{font-size:18px;margin:0}
+main{max-width:980px;margin:0 auto;padding:16px}
+section{background:#fff;border-radius:12px;padding:14px;margin:12px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+label{font-size:13px;color:#475569;display:block;margin:0 0 6px}
+input[type=file]{width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px}
+button{border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+.primary{background:#2563eb;color:#fff}
+.ghost{background:#fff;color:#2563eb;border:1px solid #2563eb}
+.small{font-size:12px;color:#64748b}
+.log{white-space:pre-wrap;background:#0b1020;color:#e2e8f0;border-radius:8px;padding:10px;max-height:240px;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.ok{color:#059669;font-weight:700}
+.warn{color:#b45309}
+table{border-collapse:collapse;width:100%}
+th,td{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left;font-size:13px}
+th{background:#f1f5f9}
+a.dl{display:inline-block;background:#059669;color:#fff;text-decoration:none;padding:8px 12px;border-radius:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>看護師シフト作成（単一HTML v5r） <span id="jsStatus" class="warn">未ロード</span></h1>
+</header>
+<main>
+  <section>
+    <h2>1) CSVを選択</h2>
+    <div class="grid">
+      <div>
+        <label>職員マスタ（必須）</label>
+        <input id="f_staff" type="file" accept=".csv">
+        <div class="small">ヘッダーは日本語/大文字小文字/タブ/セミコロン区切りも可</div>
+      </div>
+      <div>
+        <label>休み希望（任意）</label>
+        <input id="f_req" type="file" accept=".csv">
+      </div>
+      <div>
+        <label>教育ペア（任意）</label>
+        <input id="f_pairs" type="file" accept=".csv">
+      </div>
+      <div>
+        <label>需要設定（任意）</label>
+        <input id="f_dem" type="file" accept=".csv">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="ghost" onclick="run(true)">サンプルを読み込む</button>
+      <button class="primary" onclick="run(false)">シフト計算を実行</button>
+    </div>
+    <div class="small" style="margin-top:8px">このページはオフラインで完結し、外部送信しません。</div>
+  </section>
+
+  <section>
+    <h2>2) 結果</h2>
+    <div id="summary" class="small">未実行</div>
+    <div style="display:flex;gap:10px;margin:8px 0">
+      <a id="dlSchedule" class="dl" href="#" download="schedule_output.csv" style="display:none">シフトCSVをダウンロード</a>
+      <a id="dlReport" class="dl" href="#" download="validation_report.txt" style="display:none;background:#2563eb">検証レポートをダウンロード</a>
+    </div>
+    <div id="preview"></div>
+  </section>
+
+  <section>
+    <h2>ログ</h2>
+    <div id="log" class="log">準備完了</div>
+  </section>
+</main>
+
+<script>
+document.getElementById('jsStatus').textContent='ロード済み ✓';
+document.getElementById('jsStatus').className='ok';
+
+const SAMPLE_STAFF = `staff_id,name,sex,years,skills,max_shifts_per_week,max_night_per_week
+N01,佐藤A,F,0,"IV",5,2
+N02,鈴木B,F,4,"IV,CV",5,2
+N03,高橋C,M,3,"IV,WOUND",5,1
+N04,田中D,F,6,"IV,CV,WOUND",5,2
+N05,山本E,F,2,"IV",5,2
+N06,中村F,M,5,"IV,CV",5,2
+N07,小林G,F,1,"IV,WOUND",5,1
+N08,加藤H,F,3,"IV",5,2
+`;
+const SAMPLE_REQ = `staff_id,day,shift,request_type,weight
+N01,Day1,D,希望,3
+N03,Day2,,不可,10
+N05,Day3,N,希望,2
+`;
+const SAMPLE_PAIRS = `pair_id,mentee_id,mentor_id
+1,N07,N06
+2,N01,N02
+`;
+const SAMPLE_DEM = `day,D,N,min_cv_D,min_cv_N
+Day1,6,3,2,1
+Day2,6,3,2,1
+Day3,6,3,2,1
+Day4,6,3,2,1
+Day5,6,3,2,1
+Day6,6,3,2,1
+Day7,6,3,2,1
+`;
+
+function log(m){ const el=document.getElementById('log'); el.textContent += "\n"+m; el.scrollTop=el.scrollHeight; }
+function readAsText(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result)); r.onerror=rej; r.readAsText(f,'utf-8'); }); }
+function detectDelim(first){ const cand=[",",";","\t"]; let best=",", nbest=0; for(const d of cand){ const n=(first.split(d).length-1); if(n>nbest){best=d; nbest=n;} } return nbest?best:","; }
+function parseCSV(text){
+  const first=(text.split(/\r?\n/)[0]||'').replace(/^\ufeff/,'');
+  const d=detectDelim(first);
+  const rows=[]; let field="", row=[], i=0, q=false;
+  while(i<=text.length){
+    const c=text[i]||"\n";
+    if(q){
+      if(c=='"'){ if(text[i+1]=='"'){field+='"'; i++;} else q=false; }
+      else field+=c;
+    }else{
+      if(c=='"') q=true;
+      else if(c==d){ row.push(field); field=""; }
+      else if(c=="\n"||c=="\r"){ if(c=="\r"&&text[i+1]=="\n") i++; row.push(field); field=""; if(row.some(x=>x!=='')) rows.push(row); row=[]; }
+      else field+=c;
+    }
+    i++;
+  }
+  return rows;
+}
+function headerMap(header){
+  const norm=s=>String(s||'').toLowerCase().replace(/^\ufeff/,'').trim().replace(/\s+/g,'').replace(/　/g,'').replace(/[＿]/g,'_').replace(/-/g,'_');
+  const idx={}; header.forEach((h,i)=>idx[norm(h)]=i);
+  const aliases={
+    staff_id:['staff_id','id','worker_id','職員id','スタッフid'],
+    name:['name','氏名','名前'],
+    sex:['sex','gender','性別'],
+    years:['years','experience','exp_years','経験年数','年数'],
+    skills:['skills','skill','スキル'],
+    max_shifts_per_week:['max_shifts_per_week','max_shifts','週勤務上限'],
+    max_night_per_week:['max_night_per_week','max_nights_week','夜勤上限']
+  };
+  const out={}; const missing=[];
+  for(const k in aliases){
+    out[k]=null;
+    for(const a of aliases[k]){ const n=norm(a); if(idx[n]!==undefined){ out[k]=idx[n]; break; } }
+    if(out[k]===null) missing.push(k);
+  }
+  return {out, missing};
+}
+function csvToObjectsStaff(text){
+  const rows=parseCSV(text); if(!rows.length) return [];
+  const {out:map, missing}=headerMap(rows[0]);
+  if(missing.length) throw new Error("職員マスタの不足列: "+missing.join(", "));
+  const arr=[];
+  for(let r=1;r<rows.length;r++){
+    const t=rows[r]; if(!t || (t.length===1 && String(t[0]).trim()==='')) continue;
+    arr.push({
+      staff_id: String(t[map.staff_id]||'').trim(),
+      name: String(t[map.name]||'').trim(),
+      sex: String(t[map.sex]||'').trim(),
+      years: String(t[map.years]||'').trim(),
+      skills: String(t[map.skills]||'').trim(),
+      max_shifts_per_week: String(t[map.max_shifts_per_week]||'').trim(),
+      max_night_per_week: String(t[map.max_night_per_week]||'').trim()
+    });
+  }
+  return arr;
+}
+function csvToObjects(text, expected){
+  const rows=parseCSV(text); if(!rows.length) return [];
+  const norm=s=>String(s||'').toLowerCase().replace(/^\ufeff/,'').trim().replace(/\s+/g,'').replace(/　/g,'');
+  const headIdx={}; rows[0].forEach((h,i)=>headIdx[norm(h)]=i);
+  const idx=expected.map(k=> headIdx[norm(k)]);
+  const arr=[];
+  for(let r=1;r<rows.length;r++){
+    const t=rows[r]; if(!t || (t.length===1 && String(t[0]).trim()==='')) continue;
+    const o={}; expected.forEach((k,ci)=> o[k]= String(t[idx[ci]]??'').trim() ); arr.push(o);
+  }
+  return arr;
+}
+function toCSV(objs){
+  if(!objs.length) return "";
+  const keys=Object.keys(objs[0]);
+  const esc=s=> /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  const lines=[keys.join(',')];
+  for(const o of objs){ lines.push(keys.map(k=>esc(String(o[k]??''))).join(',')); }
+  return lines.join('\n');
+}
+function dlURL(text, mime){ return URL.createObjectURL(new Blob([text],{type:mime||'text/plain'})); }
+
+// ==== v5ベースのスケジューラ + 検証集計の追記のみ ====
+function schedule(staff, requests, pairs, demand){
+  const days=demand.days, req=demand.req, minCV=demand.minCV;
+  const idx={}; staff.forEach((s,i)=>idx[s.staff_id]=i);
+  const hasCV={}; staff.forEach(s=> hasCV[s.staff_id]=(String(s.skills||'').toUpperCase().split(',').map(x=>x.trim()).includes('CV')) );
+  const asg={}; staff.forEach(s=> asg[s.staff_id]={total:0,N:0,last:{}});
+
+  const blockAll=new Set(), blockShift=new Set(), wish=new Map();
+  for(const r of (requests||[])){
+    const sid=r.staff_id, d=r.day, sh=(r.shift||'').toUpperCase(), t=(r.request_type||'').trim(), w=parseInt(r.weight||'3',10);
+    if(t==='不可'){ if(sh==='D'||sh==='N') blockShift.add(`${sid}|${d}|${sh}`); else blockAll.add(`${sid}|${d}`); }
+    else if(t==='希望' && (sh==='D'||sh==='N')) wish.set(`${sid}|${d}|${sh}`, isNaN(w)?3:w);
+  }
+
+  const out=[];
+  function ok(sid, di, sh){
+    const day=days[di]; const S=staff[idx[sid]];
+    if(blockAll.has(`${sid}|${day}`)) return false;
+    if(blockShift.has(`${sid}|${day}|${sh}`)) return false;
+    if(asg[sid].last[day]) return false;
+    if(asg[sid].total >= parseInt(S.max_shifts_per_week||'0',10)) return false;
+    if(sh==='N' && asg[sid].N >= parseInt(S.max_night_per_week||'0',10)) return false;
+    if(sh==='D' && di>0 && asg[sid].last[days[di-1]]==='N') return false;
+    return true;
+  }
+  const totalReq = req.D.reduce((a,b)=>a+b,0)+req.N.reduce((a,b)=>a+b,0);
+  const avgPerStaff = totalReq / Math.max(1,staff.length);
+  const totalN=req.N.reduce((a,b)=>a+b,0), avgN = totalN/Math.max(1,staff.length);
+  function scD(sid,day){ const fair=Math.max(0, avgPerStaff - asg[sid].total); const w=wish.get(`${sid}|${day}|D`)||0; const cv=hasCV[sid]?0.2:0; return fair+w+cv; }
+  function scN(sid,day){ const fair=Math.max(0, avgN - asg[sid].N); const w=wish.get(`${sid}|${day}|N`)||0; return fair+w; }
+
+  for(let di=0; di<days.length; di++){
+    const day=days[di]; let needD=req.D[di], needN=req.N[di];
+    const dayAsg=new Set();
+    for(const p of (pairs||[])){
+      if(needD<=1) break;
+      const a=p.mentee_id, b=p.mentor_id;
+      if(idx[a]==null || idx[b]==null) continue;
+      if(ok(a,di,'D') && ok(b,di,'D')){
+        for(const sid of [a,b]){ out.push({day,shift:'D',staff_id:sid}); asg[sid].last[day]='D'; asg[sid].total++; dayAsg.add(sid); }
+        needD -= 2;
+      }
+    }
+    let curCV=[...dayAsg].filter(sid=>hasCV[sid]).length;
+    let needCV=Math.max(0,(minCV.D||0)-curCV);
+    const candsD=staff.map(s=>s.staff_id).filter(sid=>!dayAsg.has(sid) && ok(sid,di,'D')).sort((a,b)=>scD(b,day)-scD(a,day));
+    for(const sid of candsD){ if(needD<=0 || needCV<=0) break; if(hasCV[sid]){ out.push({day,shift:'D',staff_id:sid}); asg[sid].last[day]='D'; asg[sid].total++; dayAsg.add(sid); needD--; needCV--; } }
+    for(const sid of candsD){ if(needD<=0) break; if(dayAsg.has(sid)) continue; out.push({day,shift:'D',staff_id:sid}); asg[sid].last[day]='D'; asg[sid].total++; dayAsg.add(sid); needD--; }
+
+    const usedN=new Set(); let curCVN=0;
+    const candsN=staff.map(s=>s.staff_id).filter(sid=>ok(sid,di,'N')).sort((a,b)=>scN(b,day)-scN(a,day));
+    for(const sid of candsN){
+      if(needN<=0) break;
+      const needCVN=Math.max(0,(minCV.N||0)-curCVN);
+      const isCV=!!hasCV[sid]; if(needCVN>0 && !isCV) continue;
+      out.push({day,shift:'N',staff_id:sid}); asg[sid].last[day]='N'; asg[sid].total++; asg[sid].N++; if(isCV) curCVN++; needN--; usedN.add(sid);
+    }
+    if(needN>0){
+      for(const sid of candsN){ if(needN<=0) break; if(usedN.has(sid)) continue;
+        out.push({day,shift:'N',staff_id:sid}); asg[sid].last[day]='N'; asg[sid].total++; asg[sid].N++; needN--;
+      }
+    }
+  }
+
+  const m=new Map(staff.map(s=>[s.staff_id,s]));
+  out.forEach(r=>{ const s=m.get(r.staff_id)||{}; r.name=s.name; r.years=s.years; r.skills=s.skills; });
+
+  // ---- ここから：検証集計（追加） ----
+  const byKey = new Map();
+  for(const r of out){
+    const k=`${r.day}|${r.shift}`;
+    if(!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(r);
+  }
+  const rep=[];
+
+  // 既存の日別出力
+  for(let di=0;di<days.length;di++){
+    for(const sh of ['D','N']){
+      const k=`${days[di]}|${sh}`;
+      const assigned=(byKey.get(k)||[]);
+      const cvn = assigned.filter(x=>String(x.skills||'').toUpperCase().split(',').map(y=>y.trim()).includes('CV')).length;
+      rep.push(`${days[di]} ${sh}: required=${req[sh][di]} assigned=${assigned.length}`);
+      rep.push(`${days[di]} ${sh}: min_CV=${minCV[sh]} actual_CV=${cvn}`);
+    }
+  }
+
+  // 追加：集計
+  let demandOK=0, cvOK=0;
+  const totalSlots=days.length*2;
+  for(let di=0; di<days.length; di++){
+    for(const sh of ['D','N']){
+      const k=`${days[di]}|${sh}`;
+      const assignedCnt=(byKey.get(k)||[]).length;
+      const cvCnt=(byKey.get(k)||[]).filter(x=>String(x.skills||'').toUpperCase().split(',').map(y=>y.trim()).includes('CV')).length;
+      if(assignedCnt===req[sh][di]) demandOK++;
+      if(cvCnt>=(minCV[sh]||0)) cvOK++;
+    }
+  }
+  let wishTotal=0,wishHit=0,wishW=0,wishWHit=0;
+  let blockTotal=0,blockOK=0;
+  for(const r of (requests||[])){
+    const sid=r.staff_id, day=r.day, sh=(r.shift||'').toUpperCase(), t=(r.request_type||'').trim(), w=parseInt(r.weight||'3',10);
+    if(t==='希望' && (sh==='D'||sh==='N')){
+      wishTotal++; wishW += isNaN(w)?0:w;
+      const key=`${day}|${sh}`;
+      const hit=(byKey.get(key)||[]).some(x=>x.staff_id===sid);
+      if(hit){ wishHit++; wishWHit += isNaN(w)?0:w; }
+    }else if(t==='不可'){
+      blockTotal++;
+      if(sh==='D'||sh==='N'){
+        const key=`${day}|${sh}`;
+        const ok = !((byKey.get(key)||[]).some(x=>x.staff_id===sid));
+        if(ok) blockOK++;
+      }else{
+        const ok = !(['D','N'].some(S=> (byKey.get(`${day}|${S}`)||[]).some(x=>x.staff_id===sid) ));
+        if(ok) blockOK++;
+      }
+    }
+  }
+
+  let pairsDays=0, pairsHit=0;
+  for(const p of (pairs||[])){
+    for(const day of days){
+      pairsDays++;
+      const dlist=(byKey.get(`${day}|D`)||[]);
+      const hit = dlist.some(x=>x.staff_id===p.mentee_id) && dlist.some(x=>x.staff_id===p.mentor_id);
+      if(hit) pairsHit++;
+    }
+  }
+
+  rep.push("");
+  rep.push("=== 集計 ===");
+  rep.push(`需要充足: ${demandOK}/${totalSlots} (${Math.round(100*demandOK/Math.max(1,totalSlots))}%)`);
+  rep.push(`CV下限充足: ${cvOK}/${totalSlots} (${Math.round(100*cvOK/Math.max(1,totalSlots))}%)`);
+  rep.push(`希望充足: ${wishHit}/${wishTotal} (${wishTotal?Math.round(100*wishHit/wishTotal):100}%) | 加重充足: ${wishWHit}/${wishW}`);
+  rep.push(`不可遵守: ${blockOK}/${blockTotal} (${blockTotal?Math.round(100*blockOK/blockTotal):100}%)`);
+  rep.push(`教育ペア同日D: ${pairsHit}/${pairsDays} (${pairsDays?Math.round(100*pairsHit/pairsDays):100}%)`);
+  // ---- 追加ここまで ----
+
+  return {schedule: out, report: rep.join("\n")};
+}
+
+function renderPreview(rows){
+  const el=document.getElementById('preview');
+  if(!rows.length){ el.innerHTML='<p class="warn">割当が作成できませんでした。</p>'; return; }
+  const cols=['day','shift','staff_id','name','years','skills'];
+  const head='<tr>'+cols.map(c=>`<th>${c}</th>`).join('')+'</tr>';
+  const body=rows.slice(0,100).map(r=>'<tr>'+cols.map(c=>`<td>${r[c]??''}</td>`).join('')+'</tr>').join('');
+  el.innerHTML = `<div class="small">先頭 ${Math.min(100,rows.length)} / 全${rows.length}行</div><table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+async function gather(useSamples){
+  const fs=document.getElementById('f_staff'), fr=document.getElementById('f_req'), fp=document.getElementById('f_pairs'), fd=document.getElementById('f_dem');
+  let sTxt, rTxt='', pTxt='', dTxt='';
+  if(useSamples){ sTxt=SAMPLE_STAFF; rTxt=SAMPLE_REQ; pTxt=SAMPLE_PAIRS; dTxt=SAMPLE_DEM; }
+  else{
+    if(!fs.files.length) throw new Error('職員マスタCSVが選択されていません。');
+    sTxt = await readAsText(fs.files[0]);
+    if(fr.files.length) rTxt = await readAsText(fr.files[0]);
+    if(fp.files.length) pTxt = await readAsText(fp.files[0]);
+    if(fd.files.length) dTxt = await readAsText(fd.files[0]);
+  }
+  const staff = csvToObjectsStaff(sTxt);
+  const reqs = rTxt ? csvToObjects(rTxt, ['staff_id','day','shift','request_type','weight']) : [];
+  const pairs = pTxt ? csvToObjects(pTxt, ['pair_id','mentee_id','mentor_id']) : [];
+  let days=['Day1','Day2','Day3','Day4','Day5','Day6','Day7'], D=new Array(7).fill(10), N=new Array(7).fill(6), minD=2, minN=1;
+  if(dTxt){
+    const dem = csvToObjects(dTxt, ['day','D','N','min_cv_D','min_cv_N']);
+    if(dem.length){ days = dem.map(x=>x.day); D = dem.map(x=>parseInt(x.D||'0',10)); N = dem.map(x=>parseInt(x.N||'0',10));
+      if(dem[0].min_cv_D) minD=parseInt(dem[0].min_cv_D,10); if(dem[0].min_cv_N) minN=parseInt(dem[0].min_cv_N,10); }
+  }
+  return {staff, reqs, pairs, demand:{days, req:{D,N}, minCV:{D:minD, N:minN}}};
+}
+
+async function run(useSamples){
+  const sum=document.getElementById('summary'), dlS=document.getElementById('dlSchedule'), dlR=document.getElementById('dlReport');
+  try{
+    const {staff, reqs, pairs, demand} = await gather(useSamples);
+    log(`読み込み完了: staff=${staff.length}, requests=${reqs.length}, pairs=${pairs.length}, days=${demand.days.length}`);
+    const res = schedule(staff, reqs, pairs, demand);
+    renderPreview(res.schedule);
+    sum.textContent = `完了: 割当=${res.schedule.length} 行`;
+    dlS.href = dlURL(toCSV(res.schedule), 'text/csv'); dlS.style.display='inline-block';
+    dlR.href = dlURL(res.report, 'text/plain'); dlR.style.display='inline-block';
+  }catch(e){
+    sum.textContent = "エラー: " + e.message;
+    log("エラー: " + e.message);
+    alert("エラー: " + e.message);
+  }
+}
+</script>
+</body>
+</html>

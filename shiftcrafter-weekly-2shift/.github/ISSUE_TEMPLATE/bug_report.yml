@@ -1,0 +1,24 @@
+name: 🐛 バグ報告 / Bug report
+description: 不具合の報告はこちら
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: checkboxes
+    id: dupcheck
+    attributes:
+      label: 事前確認
+      options:
+        - label: 既存Issueを検索し、重複でないことを確認しました
+          required: true
+  - type: input
+    id: env
+    attributes:
+      label: 環境（ブラウザ/OS）
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 再現手順
+    validations:
+      required: true

@@ -1,0 +1,11 @@
+staff_id,day,shift,request_type,weight
+N01,Day5,D,希望,3
+N02,Day6,D,希望,3
+N03,Day2,D,希望,3
+N04,Day5,D,希望,3
+N05,Day6,D,希望,3
+N06,Day2,D,希望,3
+N07,Day2,,不可,10
+N08,Day4,,不可,10
+N09,Day4,,不可,10
+N10,Day3,,不可,10

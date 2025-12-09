@@ -1,0 +1,59 @@
+name: 🤝 カスタム相談 / Custom request
+description: 設定や仕様の個別カスタマイズ相談（要件ヒアリング用）
+title: "[Consulting]: "
+labels: ["consulting"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        カスタムのご相談ありがとうございます。
+        公開リポジトリです。**個人情報・実患者データ・施設固有情報は書かない**でください。
+        必要があれば **匿名化したダミーデータ** の共有をご検討ください。
+  - type: input
+    id: contact
+    attributes:
+      label: 連絡先（任意）
+      placeholder: 例) メール or XのDM
+  - type: textarea
+    id: context
+    attributes:
+      label: 背景と課題（現場の状況や運用フロー）
+      placeholder: 例) 三交代。Night明けのDay禁止を厳密に。月次で各職員へICS配布したい 等
+    validations:
+      required: true
+  - type: textarea
+    id: must
+    attributes:
+      label: 必須要件（必ず満たしたい条件）
+      placeholder: 箇条書きで3〜5点
+    validations:
+      required: true
+  - type: textarea
+    id: nice
+    attributes:
+      label: あると嬉しい要件（任意）
+  - type: textarea
+    id: dataset
+    attributes:
+      label: データ形式と共有方法
+      placeholder: 例) CSV（匿名化済み）。共有はGitHub添付/リンクなど
+    validations:
+      required: true
+  - type: input
+    id: target_month
+    attributes:
+      label: 対象期間・規模（任意）
+      placeholder: 例) 2025年11月、スタッフ28名、病棟A
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: データ取り扱いの同意
+      options:
+        - label: 個人情報や実患者データを含めないことを理解しました
+          required: true
+  - type: textarea
+    id: timeline_budget
+    attributes:
+      label: 希望時期・予算感（任意）
+      placeholder: 例) 来月中、院内予算◯◯円程度 など

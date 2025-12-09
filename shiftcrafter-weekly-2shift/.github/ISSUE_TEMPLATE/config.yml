@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: セキュリティ脆弱性の連絡
+    url: mailto:you@example.com
+    about: 脆弱性は公開Issueではなく、こちらへ（個人情報は送らないでください）。

@@ -1,0 +1,36 @@
+name: "✨ Feature request / 機能要望"
+description: "New capability or improvement / 新機能・改善提案"
+labels: ["enhancement", "needs-spec"]
+body:
+  - type: dropdown
+    id: part
+    attributes:
+      label: "Scope / 対象"
+      options:
+        - Part 1 — Weekly 2-shift
+        - Part 2 — Monthly 2-shift
+        - Part 3 — Monthly 3-shift
+        - Part 5 — Monthly Multi-shift (Early/Day/Late/Night + Short)
+        - Cross-cutting / 横断
+    validations: { required: true }
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Problem to solve / 解決したい課題"
+      placeholder: "Why this matters / なぜ必要？現場で何が困る？"
+    validations: { required: true }
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: "Proposed solution / 提案"
+      placeholder: "UI, inputs, outputs, constraints / UI・入力・出力・制約"
+    validations: { required: true }
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: "Acceptance criteria / 受入基準"
+      placeholder: "- [ ] When I …, it … / 完了の定義"
+    validations: { required: true }

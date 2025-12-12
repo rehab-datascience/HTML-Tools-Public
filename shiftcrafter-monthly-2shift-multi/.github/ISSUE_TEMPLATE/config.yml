@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📄 Docs / デモ
+    url: https://rehab-datascience.github.io/
+    about: 使い方・仕様・デモリンク
+  - name: 💬 Q&A / Discussions
+    url: https://github.com/rehab-datascience
+    about: 雑談・相談（バグ/要望はIssueへ）

@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ShiftCrafter Part 5 — 多体系対応（月次・早/日/遅/夜＋時短）</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; color: #0e1d2f; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    .desc { color: #456; margin-bottom: 16px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .panel { border: 1px solid #dde3ea; border-radius: 10px; padding: 12px; background: #f8fafc; }
+    .panel h2 { font-size: 16px; margin: 0 0 8px; }
+    label { display:block; font-size: 12px; color:#345; margin: 6px 0 4px; }
+    input, textarea, select, button { width: 100%; box-sizing: border-box; font-size: 14px; padding: 8px; border: 1px solid #c9d3df; border-radius: 8px; }
+    textarea { min-height: 110px; resize: vertical; }
+    .row { display:flex; gap: 8px; align-items:center; }
+    .row > * { flex: 1; }
+    .btn { background:#0ea5a6; color:white; border:none; padding:10px 12px; border-radius: 10px; cursor:pointer; font-weight: 600; }
+    .btn.secondary { background:#475569; }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    table { width:100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border:1px solid #e2e8f0; padding:6px 8px; text-align:left; }
+    th { background:#eef2f7; }
+    .note { font-size:12px; color:#566; }
+    .ok { color:#0a7; font-weight:600; }
+    .warn { color:#b45309; font-weight:600; }
+    .error { color:#b91c1c; font-weight:600; }
+    .footer { margin-top: 16px; font-size: 12px; color:#566; }
+    .mono { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h1>ShiftCrafter Part 5 — 多体系対応（月次・早/日/遅/夜＋時短）</h1>
+  <p class="desc"><b>早出・日勤・遅出・夜勤</b>＋<b>時短</b>を<b>1か月</b>で自動割当。<b>CSV/ICS/検証CSV</b>対応。データは外部送信しません。</p>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>入力</h2>
+      <label>対象月（YYYY-MM）</label>
+      <input id="month" type="month" />
+      
+      <div class="row">
+        <div>
+          <label>必要人数（<b>日勤</b>／全日共通）</label>
+          <input id="needDay" type="number" min="0" value="2" />
+        </div>
+        <div>
+          <label>必要人数（夜勤／全日共通）</label>
+          <input id="needNight" type="number" min="0" value="1" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>必要人数（<b>早出</b>／全日共通）</label>
+          <input id="needEarly" type="number" min="0" value="1" />
+        </div>
+        <div>
+          <label>必要人数（<b>遅出</b>／全日共通）</label>
+          <input id="needLate" type="number" min="0" value="1" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>週あたり夜勤上限（各職員）</label>
+          <input id="weeklyNightCap" type="number" min="0" value="2" />
+        </div>
+        <div>
+          <label>月あたり夜勤上限（任意・空なら無制限）</label>
+          <input id="monthlyNightCap" type="number" min="0" placeholder="例: 6" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>時短の重み（既定 <b>0.8</b>）<span class="note">例：日勤1.0、時短0.8として充足率評価</span></label>
+          <input id="shortWeight" type="number" step="0.05" min="0" max="1" value="0.8" />
+        </div>
+        <div>
+          <label>時短の時刻（既定 09:00–16:00）</label>
+          <input id="shortTime" type="text" value="09:00-16:00" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>早出の時刻（既定 07:00–15:30）</label>
+          <input id="earlyTime" type="text" value="07:00-15:30" />
+        </div>
+        <div>
+          <label>遅出の時刻（既定 11:30–20:00）</label>
+          <input id="lateTime" type="text" value="11:30-20:00" />
+        </div>
+      </div>
+
+      <label>職員リスト（<b>フルタイム（早/日/遅/夜）</b>：1行1名）</label>
+      <textarea id="staffFull" placeholder="田中\n鈴木\n佐藤\n…"></textarea>
+
+      <label>職員リスト（<b>時短日勤のみ</b>：1行1名）</label>
+      <textarea id="staffShort" placeholder="山本（時短）\n高橋（時短）\n…"></textarea>
+
+      <label>休み希望（任意・1行1件）<span class="note">例：2025-11-03 田中</span></label>
+      <textarea id="requests" placeholder="2025-11-03 田中\n2025-11-08 鈴木"></textarea>
+
+      <div class="row" style="margin-top:8px;">
+        <button class="btn" id="btnGen">シフト自動作成</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn secondary" id="btnCsv" disabled>CSVダウンロード</button>
+        <button class="btn secondary" id="btnIcsAll" disabled>ICSダウンロード</button>
+        <button class="btn secondary" id="btnValidate" disabled>検証CSVダウンロード</button>
+      </div>
+      <div id="msg" class="note" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>結果プレビュー</h2>
+      <div id="tableWrap" class="mono">未作成</div>
+      <div class="footer note">
+        制約（MVP）：Night→翌勤務禁止／週・月の夜勤上限／希望休尊重。
+        優先順位：夜勤 → 早出 → 遅出 → 日勤（通常＋時短で補完）。
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px;">
+    <h2>検証サマリ</h2>
+    <div id="summary" class="mono">—</div>
+  </div>
+
+<script>
+// ===== ユーティリティ =====
+const fmtDate = (d) => d.toISOString().slice(0,10);
+function parseMonthStr(ym){ if(!ym) return null; const [y,m]=ym.split('-').map(Number); return new Date(y,m-1,1); }
+function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
+function addDays(date,n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
+function dowStr(d){ return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]; }
+function isoWeekKey(d){
+  const date=new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum=(date.getUTCDay()+6)%7; date.setUTCDate(date.getUTCDate()-dayNum+3);
+  const firstThu=new Date(Date.UTC(date.getUTCFullYear(),0,4));
+  const week=1+Math.round(((date-firstThu)/86400000 -3 + ((firstThu.getUTCDay()+6)%7))/7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2,'0')}`;
+}
+
+// ===== 入力取得 =====
+const elMonth = document.getElementById('month');
+const elNeedDay = document.getElementById('needDay');
+const elNeedNight = document.getElementById('needNight');
+const elNeedEarly = document.getElementById('needEarly');
+const elNeedLate = document.getElementById('needLate');
+const elWCap = document.getElementById('weeklyNightCap');
+const elMCap = document.getElementById('monthlyNightCap');
+const elShortWeight = document.getElementById('shortWeight');
+const elShortTime = document.getElementById('shortTime');
+const elEarlyTime = document.getElementById('earlyTime');
+const elLateTime = document.getElementById('lateTime');
+const elStaffFull = document.getElementById('staffFull');
+const elStaffShort = document.getElementById('staffShort');
+const elRequests = document.getElementById('requests');
+
+const elBtnGen = document.getElementById('btnGen');
+const elBtnCsv = document.getElementById('btnCsv');
+const elBtnIcsAll = document.getElementById('btnIcsAll');
+const elBtnValidate = document.getElementById('btnValidate');
+const elMsg = document.getElementById('msg');
+
+function getListById(id){
+  return document.getElementById(id).value.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+}
+function getStaffFull(){ return getListById('staffFull'); }
+function getStaffShort(){ return getListById('staffShort'); }
+function getRequests(){
+  const m={}; elRequests.value.split(/\n+/).forEach(line=>{
+    line=line.trim(); if(!line) return;
+    const [date, ...rest]=line.split(/\s+/);
+    const name=rest.join(' ').trim();
+    if(!m[date]) m[date]=new Set();
+    if(name) m[date].add(name);
+  }); return m;
+}
+
+// ===== 割当（Multi-Shift） =====
+// 優先順位: 1) Night, 2) Early, 3) Late, 4) Day(Full/Short)
+function assignMonthly(params){
+  const { monthStart, needDay, needNight, needEarly, needLate, weeklyNightCap, monthlyNightCap, staffFull, staffShort, requests, shortWeight } = params;
+  const days = daysInMonth(monthStart);
+  const schedule = []; 
+
+  // 統計
+  const everyone = [...new Set([...staffFull, ...staffShort])];
+  const stats = {}; 
+  everyone.forEach(s=> stats[s]={ total:0, nightMonth:0, nightByWeek:{}, lastShiftByDate:{} });
+  
+  const cmpRank = (ra, rb)=>{
+    for(let i=0;i<ra.length;i++){
+      if(ra[i]<rb[i]) return -1;
+      if(ra[i]>rb[i]) return 1;
+    }
+    return 0;
+  };
+
+  for(let i=0;i<days;i++){
+    const d = addDays(monthStart, i);
+    const dateStr = fmtDate(d);
+    const weekKey = isoWeekKey(d);
+    
+    const reqD = Number(needDay)||0;
+    const reqN = Number(needNight)||0;
+    const reqE = Number(needEarly)||0;
+    const reqL = Number(needLate)||0;
+
+    const dayFull = [];
+    const dayShort = [];
+    const nightArr = [];
+    const earlyArr = [];
+    const lateArr = [];
+
+    const isReqOff = (name)=> requests[dateStr]?.has(name);
+    const hadNightPrev = (name)=>{
+      const prev = addDays(d,-1);
+      return stats[name].lastShiftByDate[fmtDate(prev)]==='Night';
+    };
+    
+    // 割り当て済みチェック用
+    const assignedToday = (name) => {
+      return nightArr.includes(name) || earlyArr.includes(name) || lateArr.includes(name) || dayFull.includes(name) || dayShort.includes(name);
+    };
+
+    function rankCommon(name){
+      // 基本的には合計回数が少ない人を優先
+      const st=stats[name]; return [st.total, st.nightMonth, name];
+    }
+    function rankNight(name){
+      const st=stats[name]; const wk=st.nightByWeek[weekKey]||0; const m=st.nightMonth;
+      return [m, wk, st.total, name];
+    }
+
+    // 1. Night
+    for(let k=0;k<reqN;k++){
+      const candidates = staffFull.filter(name=>{
+        if(isReqOff(name)) return false;
+        if(assignedToday(name)) return false;
+        // Night制約
+        const wk=stats[name].nightByWeek[weekKey]||0;
+        if(weeklyNightCap!=null && weeklyNightCap!=='' && wk>=Number(weeklyNightCap)) return false;
+        if(monthlyNightCap!=null && monthlyNightCap!=='' && stats[name].nightMonth>=Number(monthlyNightCap)) return false;
+        // 連続夜勤防止(簡易: 前日夜勤ならNGは hadNightPrev で見ているが、ここは今日時点の判定なので不要。
+        // ただし昨日シフトによる判定が必要)
+        if(hadNightPrev(name)) return false; 
+        return true;
+      }).sort((a,b)=> cmpRank(rankNight(a), rankNight(b)));
+
+      if(candidates.length){
+        const pick=candidates[0];
+        nightArr.push(pick);
+        stats[pick].total++; stats[pick].nightMonth++;
+        stats[pick].nightByWeek[weekKey]=(stats[pick].nightByWeek[weekKey]||0)+1;
+        stats[pick].lastShiftByDate[dateStr]='Night';
+      }
+    }
+
+    // 2. Early
+    for(let k=0;k<reqE;k++){
+      const candidates = staffFull.filter(name=>{
+        if(isReqOff(name)) return false;
+        if(assignedToday(name)) return false;
+        if(hadNightPrev(name)) return false; 
+        return true;
+      }).sort((a,b)=> cmpRank(rankCommon(a), rankCommon(b)));
+      
+      if(candidates.length){
+        const pick=candidates[0];
+        earlyArr.push(pick);
+        stats[pick].total++; 
+        stats[pick].lastShiftByDate[dateStr]='Early';
+      }
+    }
+
+    // 3. Late
+    for(let k=0;k<reqL;k++){
+      const candidates = staffFull.filter(name=>{
+        if(isReqOff(name)) return false;
+        if(assignedToday(name)) return false;
+        if(hadNightPrev(name)) return false; 
+        return true;
+      }).sort((a,b)=> cmpRank(rankCommon(a), rankCommon(b)));
+
+      if(candidates.length){
+        const pick=candidates[0];
+        lateArr.push(pick);
+        stats[pick].total++; 
+        stats[pick].lastShiftByDate[dateStr]='Late';
+      }
+    }
+
+    // 4. Day (Full / Short)
+    function coverage(){ return dayFull.length + shortWeight * dayShort.length; }
+    const target = reqD;
+
+    function pickDayCandidate(){
+      const fullCandidates = staffFull.filter(name=>{
+        if(isReqOff(name)) return false;
+        if(assignedToday(name)) return false;
+        if(hadNightPrev(name)) return false;
+        return true;
+      }).sort((a,b)=> cmpRank(rankCommon(a), rankCommon(b)));
+      
+      const shortCandidates = staffShort.filter(name=>{
+        if(isReqOff(name)) return false;
+        if(assignedToday(name)) return false;
+        if(hadNightPrev(name)) return false;
+        return true;
+      }).sort((a,b)=> cmpRank(rankCommon(a), rankCommon(b)));
+
+      if(!fullCandidates.length && !shortCandidates.length) return null;
+      if(!fullCandidates.length) return { type:'short', name:shortCandidates[0] };
+      if(!shortCandidates.length) return { type:'full', name:fullCandidates[0] };
+      
+      const cmp = cmpRank(rankCommon(fullCandidates[0]), rankCommon(shortCandidates[0]));
+      // 少ないほうを優先、同点なら時短優先 (埋めるため)
+      if(cmp<0) return { type:'full', name:fullCandidates[0] };
+      if(cmp>0) return { type:'short', name:shortCandidates[0] };
+      return { type:'short', name:shortCandidates[0] };
+    }
+
+    while(coverage() < target){
+      const pick=pickDayCandidate();
+      if(!pick) break;
+      if(pick.type==='full'){
+        dayFull.push(pick.name);
+        stats[pick.name].total++; 
+        stats[pick.name].lastShiftByDate[dateStr]='DayFull';
+      }else{
+        if(shortWeight<=0) break;
+        dayShort.push(pick.name);
+        stats[pick.name].total++; 
+        stats[pick.name].lastShiftByDate[dateStr]='DayShort';
+      }
+    }
+
+    schedule.push({
+      date:dateStr, dow:dowStr(d),
+      dayFull, dayShort, night:nightArr, early:earlyArr, late:lateArr,
+      needDay:reqD, needNight:reqN, needEarly:reqE, needLate:reqL
+    });
+  }
+  return { schedule, everyone };
+}
+
+// ===== ダウンロード =====
+function download(filename, blob){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 250);
+}
+
+// ===== CSV（wide） =====
+function toCSVWide(schedule){
+  let maxF=0, maxS=0, maxN=0, maxE=0, maxL=0;
+  schedule.forEach(r=>{
+    maxF=Math.max(maxF, r.dayFull.length);
+    maxS=Math.max(maxS, r.dayShort.length);
+    maxN=Math.max(maxN, r.night.length);
+    maxE=Math.max(maxE, r.early.length);
+    maxL=Math.max(maxL, r.late.length);
+  });
+  const headers=['date','dow','need_day','need_night','need_early','need_late'];
+  for(let i=1;i<=maxE;i++) headers.push(`early_${i}`);
+  for(let i=1;i<=maxF;i++) headers.push(`day_full_${i}`);
+  for(let i=1;i<=maxL;i++) headers.push(`late_${i}`);
+  for(let i=1;i<=maxS;i++) headers.push(`day_short_${i}`);
+  for(let i=1;i<=maxN;i++) headers.push(`night_${i}`);
+
+  const rows=[headers.join(',')];
+  schedule.forEach(r=>{
+    const row=[r.date, r.dow, r.needDay, r.needNight, r.needEarly, r.needLate];
+    for(let i=0;i<maxE;i++) row.push(r.early[i]||'');
+    for(let i=0;i<maxF;i++) row.push(r.dayFull[i]||'');
+    for(let i=0;i<maxL;i++) row.push(r.late[i]||'');
+    for(let i=0;i<maxS;i++) row.push(r.dayShort[i]||'');
+    for(let i=0;i<maxN;i++) row.push(r.night[i]||'');
+    rows.push(row.map(v=> String(v).replaceAll('"','""')).map(v=> /[,\n"]/.test(v)?`"${v}"`:v).join(','));
+  });
+  const bom=new Uint8Array([0xEF,0xBB,0xBF]);
+  return new Blob([bom, rows.join('\n')], {type:'text/csv;charset=utf-8;'});
+}
+
+// ===== ICS =====
+function buildICS(schedule){
+  const tz='Asia/Tokyo';
+  const now=new Date();
+  const dtstamp=now.toISOString().replace(/[-:]/g,'').replace(/\..+/, 'Z');
+  const EOL='\r\n';
+  const pad2=n=>String(n).padStart(2,'0');
+  function dtLocal(dateStr, hhmm){
+    const [Y,M,D]=dateStr.split('-').map(Number);
+    const [hh,mm]=hhmm.split(':').map(Number);
+    return `${Y}${pad2(M)}${pad2(D)}T${pad2(hh)}${pad2(mm)}00`;
+  }
+  function plusOneDay(dateStr){ const d=new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+1); return fmtDate(d); }
+
+  const dayFullStart='08:30', dayFullEnd='17:00';
+  const shortText = document.getElementById('shortTime').value.trim();
+  const [shortStart, shortEnd] = (shortText||'09:00-16:00').split('-');
+  const nightStart='17:00', nightEnd='09:00';
+  
+  const earlyText = document.getElementById('earlyTime').value.trim();
+  const [earlyStart, earlyEnd] = (earlyText||'07:00-15:30').split('-');
+  const lateText = document.getElementById('lateTime').value.trim();
+  const [lateStart, lateEnd] = (lateText||'11:30-20:00').split('-');
+
+  const lines=[];
+  lines.push('BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//ShiftCrafter//Part5//JP','CALSCALE:GREGORIAN');
+
+  schedule.forEach(r=>{
+    // Early
+    r.early.forEach(name=>{
+      lines.push('BEGIN:VEVENT');
+      lines.push(`UID:${r.date}-early-${encodeURIComponent(name)}@shiftcrafter`);
+      lines.push(`DTSTAMP:${dtstamp}`);
+      lines.push(`DTSTART;TZID=${tz}:${dtLocal(r.date,earlyStart)}`);
+      lines.push(`DTEND;TZID=${tz}:${dtLocal(r.date,earlyEnd)}`);
+      lines.push(`SUMMARY:早出：${name}`);
+      lines.push('END:VEVENT');
+    });
+    // Day Full
+    r.dayFull.forEach(name=>{
+      lines.push('BEGIN:VEVENT');
+      lines.push(`UID:${r.date}-dayfull-${encodeURIComponent(name)}@shiftcrafter`);
+      lines.push(`DTSTAMP:${dtstamp}`);
+      lines.push(`DTSTART;TZID=${tz}:${dtLocal(r.date,dayFullStart)}`);
+      lines.push(`DTEND;TZID=${tz}:${dtLocal(r.date,dayFullEnd)}`);
+      lines.push(`SUMMARY:日勤：${name}`);
+      lines.push('END:VEVENT');
+    });
+    // Late
+    r.late.forEach(name=>{
+      lines.push('BEGIN:VEVENT');
+      lines.push(`UID:${r.date}-late-${encodeURIComponent(name)}@shiftcrafter`);
+      lines.push(`DTSTAMP:${dtstamp}`);
+      lines.push(`DTSTART;TZID=${tz}:${dtLocal(r.date,lateStart)}`);
+      lines.push(`DTEND;TZID=${tz}:${dtLocal(r.date,lateEnd)}`);
+      lines.push(`SUMMARY:遅出：${name}`);
+      lines.push('END:VEVENT');
+    });
+    // Day Short
+    r.dayShort.forEach(name=>{
+      lines.push('BEGIN:VEVENT');
+      lines.push(`UID:${r.date}-dayshort-${encodeURIComponent(name)}@shiftcrafter`);
+      lines.push(`DTSTAMP:${dtstamp}`);
+      lines.push(`DTSTART;TZID=${tz}:${dtLocal(r.date,shortStart)}`);
+      lines.push(`DTEND;TZID=${tz}:${dtLocal(r.date,shortEnd)}`);
+      lines.push(`SUMMARY:日勤(時短)：${name}`);
+      lines.push('END:VEVENT');
+    });
+    // Night
+    r.night.forEach(name=>{
+      const next=plusOneDay(r.date);
+      lines.push('BEGIN:VEVENT');
+      lines.push(`UID:${r.date}-night-${encodeURIComponent(name)}@shiftcrafter`);
+      lines.push(`DTSTAMP:${dtstamp}`);
+      lines.push(`DTSTART;TZID=${tz}:${dtLocal(r.date,nightStart)}`);
+      lines.push(`DTEND;TZID=${tz}:${dtLocal(next,nightEnd)}`);
+      lines.push(`SUMMARY:夜勤：${name}`);
+      lines.push('END:VEVENT');
+    });
+  });
+
+  lines.push('END:VCALENDAR');
+  return new Blob([lines.join(EOL)], {type:'text/calendar;charset=utf-8;'});
+}
+
+// ===== 表示 =====
+function renderTable(schedule){
+  if(!schedule.length){ document.getElementById('tableWrap').textContent='未作成'; return; }
+  let maxF=0,maxS=0,maxN=0,maxE=0,maxL=0;
+  schedule.forEach(r=>{ 
+    maxF=Math.max(maxF,r.dayFull.length); 
+    maxS=Math.max(maxS,r.dayShort.length); 
+    maxN=Math.max(maxN,r.night.length); 
+    maxE=Math.max(maxE,r.early.length);
+    maxL=Math.max(maxL,r.late.length);
+  });
+  
+  let html='<table><thead><tr><th>date</th><th>dow</th>';
+  // Columns order: Need?, Early, Day, Late, Night
+  html+='<th>early</th><th>day_full</th><th>late</th><th>day_short</th><th>night</th>';
+  html+='</tr></thead><tbody>';
+  
+  schedule.forEach(r=>{
+    html+='<tr>' + `<td>${r.date}</td><td>${r.dow}</td>`;
+    html+=`<td>${r.early.join(', ')}</td>`;
+    html+=`<td>${r.dayFull.join(', ')}</td>`;
+    html+=`<td>${r.late.join(', ')}</td>`;
+    html+=`<td>${r.dayShort.join(', ')}</td>`;
+    html+=`<td>${r.night.join(', ')}</td>`;
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById('tableWrap').innerHTML=html;
+}
+
+function renderSummary(schedule, staffFull, staffShort, shortWeight){
+  const everyone=[...new Set([...staffFull,...staffShort])];
+  const byStaff=Object.fromEntries(everyone.map(s=>[s,{total:0, night:0, early:0, late:0, dayFull:0, dayShort:0}]));
+  let consecNight=0;
+
+  for(let i=0;i<schedule.length;i++){
+    const cur=schedule[i]; const prev=schedule[i-1];
+    cur.dayFull.forEach(n=>{ byStaff[n].total++; byStaff[n].dayFull++; });
+    cur.dayShort.forEach(n=>{ byStaff[n].total++; byStaff[n].dayShort++; });
+    cur.early.forEach(n=>{ byStaff[n].total++; byStaff[n].early++; });
+    cur.late.forEach(n=>{ byStaff[n].total++; byStaff[n].late++; });
+    cur.night.forEach(n=>{ byStaff[n].total++; byStaff[n].night++; });
+    if(prev){
+      const setPrevN=new Set(prev.night);
+      cur.night.forEach(n=>{ if(setPrevN.has(n)) consecNight++; });
+    }
+  }
+
+  const rows=[['staff','total','night','early','late','day_full','day_short']];
+  Object.entries(byStaff).forEach(([name,st])=>{
+    rows.push([name, st.total, st.night, st.early, st.late, st.dayFull, st.dayShort]);
+  });
+  const text = rows.map(r=> r.join('\t')).join('\n');
+  document.getElementById('summary').textContent = text;
+}
+
+// ===== 検証CSV =====
+function buildValidationCSV(schedule, staffFull, staffShort, requests, weeklyNightCap, monthlyNightCap, shortWeight){
+  const rows=[[
+    'staff','total','night','early','late','day_full','day_short',
+    'consec_night_2plus','day_after_night_violation',
+    'requested_off_days','satisfied_off_days','off_fulfillment_pct',
+    'weekly_night_cap_violations','monthly_night_cap_violation'
+  ]];
+
+  const everyone=[...new Set([...staffFull, ...staffShort])];
+  const per=Object.fromEntries(everyone.map(n=>[n,{
+    total:0, night:0, early:0, late:0, dayFull:0, dayShort:0,
+    consecNight:0, dayAfterNight:0,
+    reqDays:0, offSatisfied:0,
+    nightByWeek:{}, monthlyNight:0
+  }]));
+
+  const isoWeek = d => {
+    const dt=new Date(d+'T00:00:00');
+    const date=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate()));
+    const dayNum=(date.getUTCDay()+6)%7; date.setUTCDate(date.getUTCDate()-dayNum+3);
+    const firstThu=new Date(Date.UTC(date.getUTCFullYear(),0,4));
+    const week=1+Math.round(((date-firstThu)/86400000 -3 + ((firstThu.getUTCDay()+6)%7))/7);
+    return `${date.getUTCFullYear()}-W${String(week).padStart(2,'0')}`;
+  };
+
+  for(let i=0;i<schedule.length;i++){
+    const cur=schedule[i]; const prev=schedule[i-1]||null;
+    const prevNight=new Set(prev?.night||[]);
+    const wk=isoWeek(cur.date);
+
+    cur.dayFull.forEach(n=>{ per[n].total++; per[n].dayFull++; });
+    cur.dayShort.forEach(n=>{ per[n].total++; per[n].dayShort++; });
+    cur.early.forEach(n=>{ per[n].total++; per[n].early++; });
+    cur.late.forEach(n=>{ per[n].total++; per[n].late++; });
+    cur.night.forEach(n=>{
+      per[n].total++; per[n].night++; per[n].monthlyNight++;
+      per[n].nightByWeek[wk]=(per[n].nightByWeek[wk]||0)+1;
+      if(prevNight.has(n)) per[n].consecNight++;
+    });
+
+    if(prev){
+      cur.dayFull.forEach(n=>{ if(prevNight.has(n)) per[n].dayAfterNight++; });
+      cur.dayShort.forEach(n=>{ if(prevNight.has(n)) per[n].dayAfterNight++; });
+      cur.early.forEach(n=>{ if(prevNight.has(n)) per[n].dayAfterNight++; });
+      cur.late.forEach(n=>{ if(prevNight.has(n)) per[n].dayAfterNight++; });
+    }
+
+    const reqSet = requests[cur.date] || new Set();
+    everyone.forEach(n=>{
+      if(reqSet.has(n)){
+        per[n].reqDays++;
+        const assigned = cur.dayFull.includes(n) || cur.dayShort.includes(n) || cur.night.includes(n) || cur.early.includes(n) || cur.late.includes(n);
+        if(!assigned) per[n].offSatisfied++;
+      }
+    });
+  }
+
+  everyone.forEach(n=>{
+    const p=per[n];
+    const offPct = p.reqDays? Math.round(1000*p.offSatisfied/p.reqDays)/10 : 100.0;
+    
+    let wkViol=0;
+    if(weeklyNightCap!=='' && weeklyNightCap!=null){
+      const cap=Number(weeklyNightCap)||0;
+      Object.values(p.nightByWeek).forEach(v=>{ if(v>cap) wkViol++; });
+    }
+    const mCap = (monthlyNightCap===''||monthlyNightCap==null)? null : Number(monthlyNightCap)||0;
+    const mViol = (mCap!=null) ? (p.monthlyNight>mCap?1:0) : 0;
+
+    rows.push([
+      n, p.total, p.night, p.early, p.late, p.dayFull, p.dayShort,
+      p.consecNight, p.dayAfterNight,
+      p.reqDays, p.offSatisfied, offPct,
+      wkViol, mViol
+    ]);
+  });
+
+  const bom=new Uint8Array([0xEF,0xBB,0xBF]);
+  const csv=rows.map(r=> r.map(v=> String(v).replaceAll('"','""'))
+                         .map(v=> /[",\n]/.test(v)? `"${v}"`: v).join(',')).join('\n');
+  return new Blob([bom,csv], {type:'text/csv;charset=utf-8;'});
+}
+
+// ===== イベント =====
+let lastSchedule=null, lastEveryone=[];
+elBtnGen.addEventListener('click', ()=>{
+  const monthStart = parseMonthStr(elMonth.value);
+  const needDay = Number(elNeedDay.value||0);
+  const needNight = Number(elNeedNight.value||0);
+  const needEarly = Number(elNeedEarly.value||0);
+  const needLate = Number(elNeedLate.value||0);
+  const weeklyNightCap = Number(elWCap.value||0);
+  const monthlyNightCap = elMCap.value==='' ? '' : Number(elMCap.value||0);
+  const shortWeight = Math.max(0, Math.min(1, Number(elShortWeight.value||0.8)));
+
+  const staffFull=getStaffFull();
+  const staffShort=getStaffShort();
+  const requests=getRequests();
+
+  if(!monthStart){ elMsg.innerHTML='<span class="error">対象月を入力してください</span>'; return; }
+  if(staffFull.length===0 && staffShort.length===0){ elMsg.innerHTML='<span class="error">職員リストが空です</span>'; return; }
+
+  const { schedule, everyone } = assignMonthly({
+    monthStart, needDay, needNight, needEarly, needLate,
+    weeklyNightCap, monthlyNightCap,
+    staffFull, staffShort, requests, shortWeight
+  });
+  lastSchedule=schedule; lastEveryone=everyone;
+
+  renderTable(schedule);
+  renderSummary(schedule, staffFull, staffShort, shortWeight);
+
+  elBtnCsv.disabled=false;
+  elBtnIcsAll.disabled=false;
+  elBtnValidate.disabled=false;
+
+  elMsg.innerHTML='<span class="ok">作成完了</span>';
+});
+
+elBtnCsv.addEventListener('click', ()=>{
+  if(!lastSchedule) return;
+  download('schedule_multi.csv', toCSVWide(lastSchedule));
+});
+elBtnIcsAll.addEventListener('click', ()=>{
+  if(!lastSchedule) return;
+  download('shift_multi.ics', buildICS(lastSchedule));
+});
+elBtnValidate.addEventListener('click', ()=>{
+  if(!lastSchedule) return;
+  const staffFull=getStaffFull(), staffShort=getStaffShort(), req=getRequests();
+  const shortWeight = Math.max(0, Math.min(1, Number(elShortWeight.value||0.8)));
+  download('validation_summary.csv',
+    buildValidationCSV(lastSchedule, staffFull, staffShort, req,
+      elWCap.value, elMCap.value, shortWeight));
+});
+
+// 既定：今月
+(function init(){
+  const now=new Date(); const ym=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  elMonth.value=ym;
+})();
+</script>
+</body>
+</html>

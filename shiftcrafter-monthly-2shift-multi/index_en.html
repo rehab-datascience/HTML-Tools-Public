@@ -282,18 +282,47 @@
         const elMsg = document.getElementById('msg');
 
         function getListById(id) {
-            return document.getElementById(id).value.split(/\n+/).map(s => s.trim()).filter(Boolean);
+            const val = document.getElementById(id).value.trim();
+            if (!val) return [];
+            if (val.startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(val);
+                    if (Array.isArray(parsed)) return parsed.map(s => String(s).trim()).filter(Boolean);
+                } catch (e) { console.log(e); }
+            }
+            return val.split(/\n+/).map(s => s.trim()).filter(Boolean);
         }
         function getStaffFull() { return getListById('staffFull'); }
         function getStaffShort() { return getListById('staffShort'); }
         function getRequests() {
-            const m = {}; elRequests.value.split(/\n+/).forEach(line => {
+            const val = elRequests.value.trim();
+            const m = {};
+
+            const add = (d, n) => {
+                if (!d || !n) return;
+                if (!m[d]) m[d] = new Set();
+                m[d].add(n);
+            };
+
+            if (val.startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(val);
+                    if (Array.isArray(parsed)) {
+                        parsed.forEach(item => {
+                            if (item.date && item.name) add(item.date, item.name);
+                        });
+                        return m;
+                    }
+                } catch (e) { /* fallback */ }
+            }
+
+            val.split(/\n+/).forEach(line => {
                 line = line.trim(); if (!line) return;
                 const [date, ...rest] = line.split(/\s+/);
                 const name = rest.join(' ').trim();
-                if (!m[date]) m[date] = new Set();
-                if (name) m[date].add(name);
-            }); return m;
+                add(date, name);
+            });
+            return m;
         }
 
         // ===== Assignment (Multi) =====

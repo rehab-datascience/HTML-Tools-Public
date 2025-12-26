@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ShiftCrafter Part 6 — クラス制・詳細希望・マトリクス出力</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 24px;
+      color: #0e1d2f;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 22px;
+    }
+
+    .desc {
+      color: #456;
+      margin-bottom: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .panel {
+      border: 1px solid #dde3ea;
+      border-radius: 10px;
+      padding: 12px;
+      background: #f8fafc;
+    }
+
+    .panel h2 {
+      font-size: 16px;
+      margin: 0 0 8px;
+      border-bottom: 1px solid #eef2f7;
+      padding-bottom: 4px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: #345;
+      margin: 6px 0 4px;
+      font-weight: 500;
+    }
+
+    input,
+    textarea,
+    select,
+    button {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 13px;
+      padding: 6px 8px;
+      border: 1px solid #c9d3df;
+      border-radius: 6px;
+    }
+
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .row>* {
+      flex: 1;
+    }
+
+    .btn {
+      background: #0ea5a6;
+      color: white;
+      border: none;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+
+    .btn.secondary {
+      background: #475569;
+    }
+
+    .btn:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    th,
+    td {
+      border: 1px solid #e2e8f0;
+      padding: 4px 6px;
+      text-align: center;
+    }
+
+    th {
+      background: #eef2f7;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .note {
+      font-size: 11px;
+      color: #678;
+    }
+
+    .ok {
+      color: #0a7;
+      font-weight: 600;
+    }
+
+    .error {
+      color: #b91c1c;
+      font-weight: 600;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    /* Shift symbols colors */
+    .sym-night {
+      color: #b45309;
+      font-weight: bold;
+      background-color: #fff7ed;
+    }
+
+    .sym-post {
+      color: #64748b;
+      background-color: #f1f5f9;
+    }
+
+    .sym-off {
+      color: #94a3b8;
+    }
+
+    .sym-day {
+      color: #0e1d2f;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>ShiftCrafter Part 6 — クラス制・詳細希望・マトリクス出力</h1>
+  <p class="desc">
+    <b>クラス(A/B)</b>管理、<b>詳細希望</b>(日/夜/休/×夜)、<b>平日/休日</b>人数設定に対応。<br>
+    CSVは<b>マトリクス形式</b>で出力されます。
+  </p>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>設定: 人数・条件</h2>
+      <label>対象月 (YYYY-MM)</label>
+      <input id="month" type="month" value="2026-01" />
+
+      <div class="row">
+        <div>
+          <label>日勤必要数 (平日)</label>
+          <input id="needDayWeekday" type="number" min="0" value="3" />
+        </div>
+        <div>
+          <label>日勤必要数 (休日)</label>
+          <input id="needDayHoliday" type="number" min="0" value="2" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>夜勤必要数 (全日)</label>
+          <input id="needNight" type="number" min="0" value="2" />
+        </div>
+        <div>
+          <label>早出/遅出 (全日)</label>
+          <div class="row">
+            <input id="needEarly" type="number" min="0" value="1" placeholder="早" title="早出人数" />
+            <input id="needLate" type="number" min="0" value="1" placeholder="遅" title="遅出人数" />
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>【Aクラス】日勤最低数 (平日)</label>
+          <input id="minClassADay" type="number" min="0" value="1" />
+        </div>
+        <div>
+          <label>【Aクラス】日勤最低数 (休日)</label>
+          <input id="minClassADayHoliday" type="number" min="0" value="1" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>【Aクラス】夜勤最低数</label>
+          <input id="minClassANight" type="number" min="0" value="1" />
+        </div>
+        <div><!-- Spacer --></div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>週あたり夜勤上限</label>
+          <input id="weeklyNightCap" type="number" min="0" value="1" />
+        </div>
+        <div>
+          <label>月あたり夜勤上限 (通常)</label>
+          <input id="monthlyNightCap" type="number" min="0" placeholder="(任意)" />
+        </div>
+      </div>
+      <div>
+        <label>月あたり夜勤上限 (時短S)</label>
+        <input id="monthlyNightCapShort" type="number" min="0" value="0" placeholder="0で夜勤なし" />
+      </div>
+
+      <label>祝日リスト (YYYY-MM-DD または 日のみ) <span class="note">※土日は自動判定</span></label>
+      <textarea id="holidays" placeholder="15 (創立記念日など)\n2026-11-20" style="min-height:50px;"></textarea>
+
+      <h2>職員・希望</h2>
+      <label>職員リスト (名前:クラス:S) <span class="note">A=リーダー, B=一般, :S=時短</span></label>
+      <textarea id="staffList" placeholder="田中:A\n鈴木:B\n佐藤:B:S"></textarea>
+
+      <label>希望・制約 (日付 名前 種類) <span class="note">種類: 休, 日, 夜, ×夜 (省略時は休)</span></label>
+      <textarea id="requests" placeholder="2026-01-03 田中 休\n2026-01-05 鈴木 夜\n2026-01-10 佐藤 ×夜"></textarea>
+
+      <button class="btn" id="btnGen">シフト自動作成</button>
+      <div id="msg" class="note" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>操作・プレビュー</h2>
+      <div class="row">
+        <button class="btn secondary" id="btnCsv" disabled>Matrix CSV</button>
+        <button class="btn secondary" id="btnIcs" disabled>ICS</button>
+        <button class="btn secondary" id="btnReport" disabled>検証レポート</button>
+      </div>
+
+      <div id="tableWrap" style="margin-top:10px; overflow-x:auto;">(未作成)</div>
+      <pre id="reportArea"
+        style="background:#fff; padding:8px; border:1px solid #ccc; max-height:200px; overflow:auto; margin-top:10px; font-size:12px;"></pre>
+
+      <div class="footer note">
+        記号: <span class="sym-day">空白=日勤等</span>, <span class="sym-night">夜=夜勤</span>, <span
+          class="sym-post">明=明け</span>,
+        <span class="sym-off">休=休み</span><br>
+        優先順位: 固定希望(日/夜/休) > 夜勤割当 > 早/遅 > 日勤埋め<br>
+        ※夜勤明けの翌日は自動的に「休」または「明」扱い。
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Utils ---
+    // --- Utils ---
+    const fmtDate = d => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+    const parseDate = s => new Date(s);
+    const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+    const getDayNum = d => d.getDay(); // 0=Sun, 6=Sat
+
+    // --- Input Parsing ---
+    // --- Input Parsing ---
+    function getVal(id, def = 0) {
+      const v = document.getElementById(id).value;
+      if (v === '') return def;
+      const n = Number(v);
+      return isNaN(n) ? def : n;
+    }
+    function getText(id) { return document.getElementById(id).value.trim(); }
+
+    function parseStaff(text) {
+      // Format: "Name:Class" or JSON ["Name:Class", ...]
+      if (text.startsWith('[')) {
+        try { const arr = JSON.parse(text); if (Array.isArray(arr)) return arr.map(parseStaffLine); } catch (e) { }
+      }
+      return text.split(/\n+/).map(s => s.trim()).filter(Boolean).map(parseStaffLine);
+    }
+    function parseStaffLine(line) {
+      // Name:Class:Option
+      const parts = line.split(':');
+      const name = parts[0].trim();
+      let cls = 'B';
+      let isShort = false;
+
+      // Simple parser for optional parts
+      for (let i = 1; i < parts.length; i++) {
+        const p = parts[i].trim().toUpperCase();
+        if (p === 'A') cls = 'A';
+        else if (p === 'B') cls = 'B';
+        else if (p === 'S') isShort = true;
+      }
+      return { name, class: cls, isShort };
+    }
+
+    function parseRequests(text) {
+      // Format: "YYYY-MM-DD Name Type"
+      const map = {};
+      const add = (d, n, t) => {
+        if (!map[d]) map[d] = {};
+        map[d][n] = t; // 'Off', 'Day', 'Night', 'NoNight'
+      };
+
+      if (text.startsWith('[')) {
+        try {
+          const arr = JSON.parse(text);
+          arr.forEach(r => add(r.date, r.name, normalizeReqType(r.type)));
+          return map;
+        } catch (e) { }
+      }
+
+      text.split(/\n+/).forEach(line => {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 2) return;
+        const date = parts[0];
+        const name = parts[1];
+        const rawType = parts[2] || '休';
+        add(date, name, normalizeReqType(rawType));
+      });
+      return map;
+    }
+
+    function normalizeReqType(t) {
+      if (!t) return 'Off';
+      const s = String(t).toLowerCase();
+      if (['日', 'day'].includes(s)) return 'Day';
+      if (['夜', 'night'].includes(s)) return 'Night';
+      if (['×夜', 'nonight', 'no-night'].includes(s)) return 'NoNight';
+      return 'Off'; // Default to Off (休)
+    }
+
+    function parseHolidays(text, monthStr) {
+      const s = new Set();
+      text.split(/\n+/).forEach(line => {
+        const raw = line.trim().split(/\s+/)[0];
+        if (!raw) return;
+        // '02', '2', '31' etc.
+        if (raw.match(/^\d{1,2}$/)) {
+          // Prepend monthStr
+          if (monthStr) {
+            s.add(`${monthStr}-${String(raw).padStart(2, '0')}`);
+          }
+        } else {
+          // Full date
+          s.add(raw);
+        }
+      });
+      return s;
+    }
+
+    // (Auto-holiday logic removed as per user request to revert)
+
+    // --- Logic ---
+    function generateSchedule() {
+      const monthStr = document.getElementById('month').value;
+      if (!monthStr) return alert("対象月を選択してください");
+
+      const startDate = new Date(monthStr + "-01");
+      const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0); // Last day
+      const daysInMonth = endDate.getDate();
+
+      // Settings
+      const reqDayWk = getVal('needDayWeekday', 3);
+      const reqDayHol = getVal('needDayHoliday', 2);
+      const reqNight = getVal('needNight', 2);
+      const reqEarly = getVal('needEarly', 1);
+      const reqLate = getVal('needLate', 1);
+
+      const minClassADay = getVal('minClassADay', 1);
+      const minClassADayHoliday = getVal('minClassADayHoliday', 1);
+      const minClassANight = getVal('minClassANight', 1);
+
+      const capMo = (document.getElementById('monthlyNightCap').value === '') ? 999 : getVal('monthlyNightCap', 999);
+      const capMoShort = getVal('monthlyNightCapShort', 0);
+      const capWk = getVal('weeklyNightCap', 1);
+
+      // Data
+      const staffList = parseStaff(getText('staffList')); // [{name, class, isShort}, ...]
+      const requests = parseRequests(getText('requests')); // {date: {name: type}}
+      const userHolidays = parseHolidays(getText('holidays'), monthStr);
+      const holidays = userHolidays; // Reverted to manual only
+
+      if (staffList.length === 0) return alert("職員リストを入力してください");
+
+      // Calculate Target Off Days (Month Days - (Sat+Sun+Holidays))
+      let weHolCount = 0;
+      for (let i = 1; i <= daysInMonth; i++) {
+        const d = new Date(startDate.getFullYear(), startDate.getMonth(), i);
+        const dayOfWeek = d.getDay();
+        const dateStr = fmtDate(d); // local fmt
+        if (dayOfWeek === 0 || dayOfWeek === 6 || holidays.has(dateStr)) {
+          weHolCount++;
+        }
+      }
+      const maxWorkDays = daysInMonth - weHolCount;
+
+      // Also check if month spans to next year? (Usually single month tool, but user might select December)
+      // If December, just this year is fine. If January, just this year is fine.
+      // But if day loop crosses year boundary? (current loop logic based on daysInMonth of selected month)
+      // So checking startDate fullYear is enough.
+
+
+      if (staffList.length === 0) return alert("職員リストを入力してください");
+
+      // Init State
+      const schedule = []; // Array of day objects
+      const stats = {};
+      staffList.forEach(s => {
+        stats[s.name] = {
+          total: 0, nightMonth: 0,
+          class: s.class,
+          isShort: s.isShort,
+          history: [] // Stores shift type per day
+        };
+      });
+
+      // Loop Days
+      for (let i = 1; i <= daysInMonth; i++) {
+        const d = new Date(startDate.getFullYear(), startDate.getMonth(), i);
+        const dateStr = fmtDate(d);
+        const dayOfWeek = d.getDay();
+        const isHol = (dayOfWeek === 0 || dayOfWeek === 6) || holidays.has(dateStr);
+
+        // Helper to sort candidates by Work Count ASC (Leveling)
+        // Helper: Calculate consecutive work days (backwards from yesterday)
+        const getConsecutive = (name) => {
+          let count = 0;
+          const hist = stats[name].history;
+          for (let k = hist.length - 1; k >= 0; k--) {
+            const type = hist[k];
+            if (type === 'Off') break; // Break only on Off (PostNight counts as work/fatigue)
+            count++;
+          }
+          return count;
+        };
+
+        // Helper: Calculate work density in last N days
+        const getWorkDensity = (name, days) => {
+          let count = 0;
+          const hist = stats[name].history;
+          for (let k = 1; k <= days; k++) {
+            const idx = hist.length - k;
+            if (idx < 0) break;
+            const type = hist[idx];
+            if (type !== 'Off') count++; // PostNight is Work? Yes. Night, Day, Early, Late are Work.
+          }
+          return count;
+        };
+
+        // Helper to sort candidates by Score ASC (Leveling + Smoothness)
+        const sortByWork = (list) => {
+          list.sort((a, b) => {
+            const consA = getConsecutive(a.name);
+            const consB = getConsecutive(b.name);
+            const densA = getWorkDensity(a.name, 7);
+            const densB = getWorkDensity(b.name, 7);
+
+            // Score Formula:
+            // Density (Local) * 10 -> Keep everyone at same recent pace
+            // Consecutive * 5 -> Prevent immediate burnout
+            // Total * 1 -> Global Fairness
+            const scoreA = (densA * 10) + (consA * 5) + stats[a.name].total;
+            const scoreB = (densB * 10) + (consB * 5) + stats[b.name].total;
+
+            const diff = scoreA - scoreB;
+            if (Math.abs(diff) > 0.1) return diff;
+            return Math.random() - 0.5; // Randomize ties
+          });
+        };
+
+        // Day Requirements
+        const targetDay = isHol ? reqDayHol : reqDayWk;
+        const targetClassADay = isHol ? minClassADayHoliday : minClassADay;
+        const targetNight = reqNight;
+
+        // Check assignments
+        const assignments = { night: [], early: [], late: [], day: [], off: [] };
+        const pool = { night: [], day: [] }; // Pool candidates
+
+        // Previous day check (for consec night or post-night)
+        const prevDateStr = fmtDate(addDays(d, -1));
+
+        // Determine initial status for each staff
+        staffList.forEach(p => {
+          const name = p.name;
+          const req = requests[dateStr]?.[name];
+          const prevShift = stats[name].history[i - 2];
+
+          // Rule: Post-Night -> Off
+          if (prevShift === 'Night') {
+            assignments.off.push(name);
+            stats[name].history.push('PostNight');
+            return;
+          }
+
+          // Request Handling
+          if (req === 'Off') {
+            assignments.off.push(name);
+            stats[name].history.push('Off');
+            return;
+          }
+          if (req === 'Night') {
+            assignments.night.push(name);
+            stats[name].history.push('Night');
+            stats[name].nightMonth++;
+            return;
+          }
+          if (req === 'Day') {
+            assignments.day.push(name);
+            stats[name].history.push('Day');
+            stats[name].total++;
+            return;
+          }
+
+          // Valid Candidate
+          const myCap = p.isShort ? capMoShort : capMo;
+          // Check Weekly Cap: Count nights in last 6 days
+          let nightsInWeek = 0;
+          for (let k = 1; k <= 6; k++) {
+            if (stats[name].history[i - 1 - k] === 'Night') nightsInWeek++;
+          }
+          let canNight = req !== 'NoNight' && stats[name].nightMonth < myCap && nightsInWeek < capWk;
+
+          // Check Tomorrow for Off Request
+          // If tomorrow is Requested Off, we cannot assign Night today (because Tomorrow would be PostNight)
+          const tmrStr = fmtDate(addDays(d, 1));
+          if (requests[tmrStr]?.[name] === 'Off') {
+            canNight = false;
+          }
+
+          // Max Work Limit: Count "Consumed Days" = Work(Total) + PostNight
+          // If PostNight is NOT a holiday, it effectively consumes a day slot.
+          const postNightCount = stats[name].history.filter(h => h === 'PostNight').length;
+          const consumedDays = stats[name].total + postNightCount;
+
+          // Limits
+          // Limits
+          const isMaxWorkStr = consumedDays >= maxWorkDays;
+          const isConsecutiveLimit = getConsecutive(name) >= 3; // Strict 3-day limit
+
+          // Strict Weekly Off Check: Ensure 2 days off (Sun-Sat)
+          let isWeeklyOffLimit = false;
+          // Count 'Off' in current week (Sun...Yesterday)
+          let offCountInWeek = 0;
+          const hist = stats[name].history;
+
+          // dayOfWeek: 0(Sun)..6(Sat)
+          // Look back 'dayOfWeek' days.
+          // If dayOfWeek=0(Sun), loop 0 times. offCount=0.
+          // If dayOfWeek=6(Sat), loop 6 times (Fri..Sun).
+          for (let k = 1; k <= dayOfWeek; k++) {
+            const idx = (i - 1) - k;
+            if (idx < 0) break; // Start of month boundary
+            if (hist[idx] === 'Off') offCountInWeek++;
+          }
+
+          // Days remaining in week (including Today)
+          // Sun(0) -> 7 days left. Sat(6) -> 1 day left.
+          const daysLeft = 7 - dayOfWeek;
+          const needed = 2 - offCountInWeek;
+
+          // If we need 2 more, and only 2 days left (Fri), we MUST off today.
+          // If we need 1 more, and only 1 day left (Sat), we MUST off today.
+          if (needed > 0 && daysLeft <= needed) {
+            isWeeklyOffLimit = true;
+          }
+
+          if (!isMaxWorkStr && !isConsecutiveLimit && !isWeeklyOffLimit) { // Only add to pool if valid
+            if (canNight) pool.night.push(p);
+            pool.day.push(p);
+          } else {
+            // Reached limit -> Force Off
+            assignments.off.push(name);
+            stats[name].history.push('Off');
+          }
+        });
+
+        // Fill Night (from pool)
+        const neededN = Math.max(0, targetNight - assignments.night.length);
+        if (neededN > 0) {
+          // Sort: Class A needed?
+          const currentClassACount = assignments.night.filter(n => stats[n].class === 'A').length;
+          const needClassA = Math.max(0, minClassANight - currentClassACount);
+
+          // Sort logic
+          pool.night.sort((a, b) => {
+            if (needClassA > 0) {
+              if (a.class === 'A' && b.class !== 'A') return -1;
+              if (a.class !== 'A' && b.class === 'A') return 1;
+            }
+            // Use same leveling logic as Day
+            // Use same leveling logic as Day
+            const consA = getConsecutive(a.name);
+            const consB = getConsecutive(b.name);
+            const densA = getWorkDensity(a.name, 7);
+            const densB = getWorkDensity(b.name, 7);
+
+            const scoreA = (densA * 10) + (consA * 5) + stats[a.name].total;
+            const scoreB = (densB * 10) + (consB * 5) + stats[b.name].total;
+
+            const diff = scoreA - scoreB;
+            if (Math.abs(diff) > 0.1) return diff;
+            return Math.random() - 0.5;
+          });
+
+          for (let k = 0; k < neededN; k++) {
+            if (pool.night.length === 0) break; // No candidates
+            const p = pool.night.shift();
+            // Remove from day pool
+            pool.day = pool.day.filter(x => x.name !== p.name);
+            assignments.night.push(p.name);
+            stats[p.name].history.push('Night');
+            stats[p.name].total++;
+            stats[p.name].nightMonth++;
+          }
+        }
+
+        // Fill Early
+        const targetEarly = isHol ? 0 : reqEarly;
+        const neededE = Math.max(0, targetEarly - assignments.early.length);
+        sortByWork(pool.day); // Balance load
+
+        for (let k = 0; k < neededE; k++) {
+          if (pool.day.length === 0) break;
+          const p = pool.day.shift();
+          assignments.early.push(p.name);
+          stats[p.name].history.push('Early');
+          stats[p.name].total++;
+        }
+
+        // Fill Late
+        const targetLate = isHol ? 0 : reqLate;
+        const neededL = Math.max(0, targetLate - assignments.late.length);
+        sortByWork(pool.day); // Re-sort for Late
+
+        for (let k = 0; k < neededL; k++) {
+          if (pool.day.length === 0) break;
+          const p = pool.day.shift();
+          assignments.late.push(p.name);
+          stats[p.name].history.push('Late');
+          stats[p.name].total++;
+        }
+
+        // Fill Day (Normal)
+        const currentDayCount = assignments.day.length;
+        let neededD = Math.max(0, targetDay - currentDayCount);
+
+        // Check Class A for Day
+        // Count existing A in (Early+Late+Day)
+        const countA = [...assignments.early, ...assignments.late, ...assignments.day]
+          .filter(n => stats[n].class === 'A').length;
+        let needA = Math.max(0, targetClassADay - countA);
+
+        pool.day.sort((a, b) => {
+          if (needA > 0) {
+            if (a.class === 'A' && b.class !== 'A') return -1;
+            if (a.class !== 'A' && b.class === 'A') return 1;
+          }
+          if (needA > 0) {
+            if (a.class === 'A' && b.class !== 'A') return -1;
+            if (a.class !== 'A' && b.class === 'A') return 1;
+          }
+          const consA = getConsecutive(a.name);
+          const consB = getConsecutive(b.name);
+          const densA = getWorkDensity(a.name, 7);
+          const densB = getWorkDensity(b.name, 7);
+
+          const scoreA = (densA * 10) + (consA * 5) + stats[a.name].total;
+          const scoreB = (densB * 10) + (consB * 5) + stats[b.name].total;
+
+          const diff = scoreA - scoreB;
+          if (Math.abs(diff) > 0.1) return diff;
+          return Math.random() - 0.5;
+        });
+
+        while (neededD > 0 && pool.day.length > 0) {
+          const p = pool.day.shift();
+          assignments.day.push(p.name);
+          stats[p.name].history.push('Day');
+          stats[p.name].total++;
+          if (p.class === 'A') needA--;
+          neededD--;
+        }
+
+        // Remaining in pool.day -> Off
+        pool.day.forEach(p => {
+          assignments.off.push(p.name);
+          stats[p.name].history.push('Off');
+        });
+
+        schedule.push({
+          date: dateStr,
+          dow: ['日', '月', '火', '水', '木', '金', '土'][dayOfWeek],
+          assignments
+        });
+      } // end loop
+
+      renderMatrix(schedule, staffList, stats, holidays, requests);
+      window.lastResult = { schedule, staffList, stats, holidays, requests };
+
+      document.getElementById('btnCsv').disabled = false;
+      document.getElementById('btnIcs').disabled = false;
+      document.getElementById('btnReport').disabled = false;
+      document.getElementById('msg').innerHTML = '<span class="ok">作成完了</span>';
+    }
+
+    // --- Report ---
+    function showReport() {
+      if (!window.lastResult) return;
+      const { schedule, staffList, stats, holidays, requests } = window.lastResult;
+
+      let log = "";
+      let missCount = 0;
+
+      schedule.forEach(day => {
+        const date = day.date;
+        staffList.forEach(s => {
+          const name = s.name;
+          const req = requests[date]?.[name];
+
+          // Find what was assigned
+          // assignments in day.assignments structure: { night:[], day:[], off:[], ... }
+          // Need to find where Name is.
+          let assigned = 'Off'; // Default matching logic
+          if (day.assignments.night.includes(name)) assigned = 'Night';
+          else if (day.assignments.early.includes(name)) assigned = 'Day'; // Early is Day type
+          else if (day.assignments.late.includes(name)) assigned = 'Day';  // Late is Day type
+          else if (day.assignments.day.includes(name)) assigned = 'Day';
+          else assigned = 'Off'; // PostNight is also Off-like logic wise here?
+
+          if (req) {
+            let ok = false;
+            if (req === 'Off' && assigned === 'Off') ok = true;
+            if (req === 'Day' && assigned === 'Day') ok = true;
+            if (req === 'Night' && assigned === 'Night') ok = true;
+            if (req === 'NoNight' && assigned !== 'Night') ok = true;
+
+            if (!ok) {
+              log += `[未達成] ${date} ${name}: 希望=${req} -> 結果=${assigned}\n`;
+              missCount++;
+            }
+          }
+        });
+      });
+
+      if (missCount === 0) log += "すべての希望が叶えられました！\n";
+      else log += `\n未達成数: ${missCount}\n`;
+
+      // Show Max Work Days status
+      log += "\n[勤務日数チェック]\n";
+      const startDate = new Date(schedule[0].date);
+      const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+      const daysInMonth = endDate.getDate();
+
+      // Recalculate target off days for report clarity
+      let weHolCount = 0;
+      for (let i = 1; i <= daysInMonth; i++) {
+        const d = new Date(startDate.getFullYear(), startDate.getMonth(), i);
+        const dateStr = fmtDate(d);
+        const dayOfWeek = d.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6 || holidays.has(dateStr)) {
+          weHolCount++;
+        }
+      }
+      const maxWork = daysInMonth - weHolCount;
+      log += `月公休数(土日祝): ${weHolCount}日 (最大勤務: ${maxWork}日)\n`;
+
+      staffList.forEach(s => {
+        const total = stats[s.name].total;
+        if (total > maxWork) {
+          log += `[警告] ${s.name}: ${total}日勤務 (上限超過 +${total - maxWork})\n`;
+        } else {
+          log += `${s.name}: ${total}日勤務 (OK)\n`;
+        }
+      });
+
+      document.getElementById('reportArea').innerText = log;
+    }
+
+    // --- Render Matrix ---
+    function renderMatrix(schedule, staffList, stats, holidays, requests) {
+      const div = document.getElementById('tableWrap');
+      let h = '<table><thead><tr><th>名前</th><th>Class</th><th>出勤</th><th>夜勤</th><th>休日</th>';
+
+      schedule.forEach(d => {
+        const isHol = (d.dow === '日' || d.dow === '土') || holidays.has(d.date);
+        const color = isHol ? '#fee' : '#fff';
+        h += `<th style="background:${color}" title="${d.date}">${d.date.slice(8)}<br><small>${d.dow}</small></th>`;
+      });
+      h += '</tr></thead><tbody>';
+
+      staffList.forEach(s => {
+        const st = stats[s.name];
+        const offCount = st.history.filter(x => x === 'Off').length; // PostNight excluded
+        h += `<tr><td style="text-align:left;font-weight:bold;">${s.name}</td><td>${s.class}</td>`;
+        h += `<td>${st.total}</td><td>${st.nightMonth}</td><td>${offCount}</td>`;
+
+        st.history.forEach((type, index) => {
+          let sym = '';
+          let cls = '';
+          if (type === 'Night') { sym = '夜'; cls = 'sym-night'; }
+          else if (type === 'PostNight') { sym = '明'; cls = 'sym-post'; }
+          else if (type === 'Off') { sym = '休'; cls = 'sym-off'; }
+          else if (type === 'Early') { sym = '早'; cls = 'sym-day'; }
+          else if (type === 'Late') { sym = '遅'; cls = 'sym-day'; }
+          else { sym = ' '; cls = 'sym-day'; } // Day
+
+          // Visualization of Requests
+          // Need date of this col.
+          if (schedule[index]) {
+            const dateStr = schedule[index].date;
+            const req = requests[dateStr]?.[s.name];
+            if (req) {
+              let isMatch = false;
+              // Match Logic
+              if (req === 'Off' && (sym === '休' || sym === '明')) isMatch = true;
+              if (req === 'Night' && sym === '夜') isMatch = true;
+              if (req === 'Day' && (sym === '早' || sym === '遅' || sym === ' ')) isMatch = true;
+
+              if (isMatch) {
+                sym = '[' + sym + ']';
+              }
+            }
+          }
+
+          h += `<td class="${cls}">${sym}</td>`;
+        });
+        h += '</tr>';
+      });
+      h += '</tbody></table>';
+      div.innerHTML = h;
+    }
+
+    // --- CSV ---
+    function exportCSV() {
+      if (!window.lastResult) return;
+      const { schedule, staffList, stats } = window.lastResult;
+
+      // Header: Staff, Class, [Date(Day)...], Total, Day, Night, Off
+      const headers = ['Staff', 'Class'];
+      schedule.forEach(d => {
+        const dateNum = parseInt(d.date.slice(8)); // '03' -> 3
+        const dayWeek = d.dow; // '月' '火' etc
+        headers.push(`${dateNum}(${dayWeek})`);
+      });
+      headers.push('Total', 'Day', 'Night', 'Off');
+
+      const rows = [headers.join(',')];
+
+      staffList.forEach(s => {
+        const st = stats[s.name];
+        const offCount = st.history.filter(x => x === 'Off').length; // PostNight excluded
+        const postNightCount = st.history.filter(x => x === 'PostNight').length;
+        // Count Day type (Day, Early, Late)
+        const dayCount = st.history.filter(x => x === 'Day' || x === 'Early' || x === 'Late').length;
+
+        const row = [s.name, s.class];
+
+        st.history.forEach(type => {
+          let sym = ' '; // Day
+          if (type === 'Night') sym = '夜';
+          if (type === 'PostNight') sym = '明';
+          if (type === 'Off') sym = '休';
+          if (type === 'Early') sym = '早';
+          if (type === 'Late') sym = '遅';
+          row.push(sym);
+        });
+
+        // Summary at end
+        row.push(st.total, dayCount, st.nightMonth, offCount);
+
+        rows.push(row.join(','));
+      });
+
+      const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), rows.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'schedule_matrix.csv';
+      a.click();
+    }
+
+    function isoWeekKey(d) {
+      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = (date.getUTCDay() + 6) % 7; date.setUTCDate(date.getUTCDate() - dayNum + 3);
+      const firstThu = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+      const week = 1 + Math.round(((date - firstThu) / 86400000 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
+      return `${date.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+    }
+
+    function exportICS() {
+      if (!window.lastResult) return;
+      const { schedule, staffList } = window.lastResult;
+
+      let ics = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//ShiftCrafter//JP//EN\n";
+
+      schedule.forEach(day => {
+        const dateStr = day.date.replace(/-/g, ''); // YYYYMMDD
+
+        // Loop assignments
+        // day.assignments: {  day:[], night:[], early:[], late:[], off:[] }
+        const addEvent = (list, summary) => {
+          list.forEach(name => {
+            ics += "BEGIN:VEVENT\n";
+            ics += `DTSTART;VALUE=DATE:${dateStr}\n`;
+            ics += `SUMMARY:${summary} - ${name}\n`;
+            ics += "END:VEVENT\n";
+          });
+        };
+
+        addEvent(day.assignments.day, "日勤");
+        addEvent(day.assignments.night, "夜勤");
+        addEvent(day.assignments.early, "早出");
+        addEvent(day.assignments.late, "遅出");
+        // Off is usually not exported to ICS as an event, or maybe "Off"? 
+        // User didn't specify. Let's include "休み" for completeness or skip?
+        // Usually shift apps include Off. Let's include it.
+        addEvent(day.assignments.off, "公休");
+      });
+
+      ics += "END:VCALENDAR";
+
+      const blob = new Blob([ics], { type: 'text/calendar' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'schedule.ics';
+      a.click();
+    }
+
+    // --- Events ---
+    document.getElementById('btnGen').onclick = generateSchedule;
+    document.getElementById('btnCsv').onclick = exportCSV;
+    document.getElementById('btnIcs').onclick = exportICS;
+    document.getElementById('btnReport').onclick = showReport;
+
+    // Init
+    // Init
+    // (function () {
+    //   const now = new Date();
+    //   document.getElementById('month').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    // })();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,179 @@
+name: "🧠 Custom consult / カスタム相談"
+description: "Use this to request tailored help (specs, workflow, datasets, KPI, etc.) / 要件整理・設計・解析の個別相談"
+title: "[Consult] short title here"
+labels: ["consult", "question"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please fill in bilingual if possible. / 可能なら英日併記でお願いします。
+
+  - type: dropdown
+    id: part
+    attributes:
+      label: "Scope / 対象領域"
+      options:
+        - "Part 1 — Weekly 2-shift"
+        - "Part 2 — Monthly 2-shift (Holiday Quota)"
+        - "Part 3 — Monthly 3-shift"
+        - "Part 5 — Monthly Multi-shift (Early/Day/Late/Night + Short)"
+        - "Roadmap / 文献ロードマップ"
+        - "EMG/IMU pipeline / 解析パイプライン"
+        - "KPI dashboard / KPIダッシュボード"
+        - "Other (describe below) / その他（下記）"
+    validations:
+      required: true
+
+  - type: input
+    id: goal
+    attributes:
+      label: "Goal (one sentence) / 目的（1文）"
+      placeholder: "e.g., Auto-generate monthly schedule with early/late shifts / 例：早出・遅出含む月次シフト自動割当"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: "Context & users / 背景と利用者"
+      description: "Department, team size, roles / 部署・人数・役割など"
+      placeholder: "Ward A (n=18 nurses), rehab unit (n=10 PT/OT)..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: "Constraints / 制約"
+      description: "Shifts, caps, holidays, fairness, platform limits, etc. / 夜勤上限・休日・公平性・環境制約など"
+      placeholder: |
+        - Weekly night cap=2
+        - No day-after-night
+        - Early shift 07:00–15:30
+        - Late shift 11:30–20:00
+    validations:
+      required: true
+
+  - type: textarea
+    id: inputs
+    attributes:
+      label: "Inputs you can provide / 提供可能な入力"
+      description: "CSV columns, ICS needs, sample staff list, etc. / CSV列やICS要件、職員サンプルなど"
+      placeholder: "CSV columns: date, need_day, need_night, need_early, need_late..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: "Desired deliverables / 望む成果物"
+      description: "HTML/JS, README, validation CSV spec, KPI report, notebook, etc."
+      placeholder: |
+        - HTML tool + README (JA/EN)
+        - validation_summary columns
+        - ICS distribution adapter
+    validations:
+      required: true
+
+  - type: dropdown
+    id: lang
+    attributes:
+      label: "Language / 対応言語"
+      options:
+        - "JA only"
+        - "EN only"
+        - "JA + EN (bilingual)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: privacy
+    attributes:
+      label: "Data sensitivity / データ機微度"
+      options:
+        - "No real data (dummy only) / 実データなし"
+        - "De-identified internal / 匿名化済み"
+        - "Contains personal/sensitive info / 個人情報を含む"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: compliance
+    attributes:
+      label: "Compliance / コンプライアンス"
+      options:
+        - label: "No PHI/PII will be shared in the issue / PHI/PIIはIssueに記載しない"
+          required: true
+        - label: "NDA may be required / NDAが必要な可能性あり"
+          required: false
+
+  - type: textarea
+    id: success
+    attributes:
+      label: "Success criteria / 成功指標"
+      description: "What proves it works? / 何が達成基準？"
+      placeholder: ">=98% slot fulfillment, 0 day-after-night violations, reviewers can reproduce..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Priority / 優先度"
+      options:
+        - "P1 (urgent) / 緊急"
+        - "P2 (high) / 高"
+        - "P3 (normal) / 中"
+        - "P4 (low) / 低"
+    validations:
+      required: true
+
+  - type: input
+    id: timeline
+    attributes:
+      label: "Desired timeline / 希望スケジュール"
+      placeholder: "e.g., draft in 1–2 weeks / 1–2週間でドラフト"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: budget
+    attributes:
+      label: "Budget ballpark / 概算予算感"
+      options:
+        - "Pro bono / 0"
+        - "~ ¥50k"
+        - "~ ¥150k"
+        - "~ ¥300k"
+        - "> ¥300k"
+    validations:
+      required: false
+
+  - type: textarea
+    id: samples
+    attributes:
+      label: "Minimal sample (dummy) / 最小サンプル（架空データ）"
+      description: "Staff list & day-off requests, or small CSV schema / 職員と休み希望、またはCSVスキーマ"
+      placeholder: |
+        2025-11-03 Alice
+        2025-11-08 Bob
+    validations:
+      required: false
+
+  - type: textarea
+    id: links
+    attributes:
+      label: "Links / 関連リンク"
+      description: "Demo, repo, specs, policy / デモ・リポジトリ・仕様・規程"
+      placeholder: "Demo: ...  Repo: ..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: "Other notes / 連絡事項"
+      placeholder: "Time zone, contact preference, etc. / タイムゾーン・連絡手段など"
+    validations:
+      required: false

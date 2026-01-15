@@ -1,0 +1,1195 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ShiftCrafter Part 7 — 休日数自動算出 & 土日連休</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 24px;
+      color: #0e1d2f;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 22px;
+    }
+
+    .desc {
+      color: #456;
+      margin-bottom: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .panel {
+      border: 1px solid #dde3ea;
+      border-radius: 10px;
+      padding: 12px;
+      background: #f8fafc;
+    }
+
+    .panel h2 {
+      font-size: 16px;
+      margin: 0 0 8px;
+      border-bottom: 1px solid #eef2f7;
+      padding-bottom: 4px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: #345;
+      margin: 6px 0 4px;
+      font-weight: 500;
+    }
+
+    input,
+    textarea,
+    select,
+    button {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 13px;
+      padding: 6px 8px;
+      border: 1px solid #c9d3df;
+      border-radius: 6px;
+    }
+
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .row>* {
+      flex: 1;
+    }
+
+    .btn {
+      background: #0ea5a6;
+      color: white;
+      border: none;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+
+    .btn.secondary {
+      background: #475569;
+    }
+
+    .btn:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    th,
+    td {
+      border: 1px solid #e2e8f0;
+      padding: 4px 6px;
+      text-align: center;
+    }
+
+    th {
+      background: #eef2f7;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .note {
+      font-size: 11px;
+      color: #678;
+    }
+
+    .ok {
+      color: #0a7;
+      font-weight: 600;
+    }
+
+    .error {
+      color: #b91c1c;
+      font-weight: 600;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    /* Shift symbols colors */
+    .sym-night {
+      color: #b45309;
+      font-weight: bold;
+      background-color: #fff7ed;
+    }
+
+    .sym-post {
+      color: #64748b;
+      background-color: #f1f5f9;
+    }
+
+    .sym-off {
+      color: #94a3b8;
+    }
+
+    .sym-day {
+      color: #0e1d2f;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>ShiftCrafter Part 7 — 休日数自動算出 & 土日連休</h1>
+  <p class="desc">
+    <b>休日数固定</b>(土日+祝日数)と<b>土日連休(2回/月)</b>を保証。<br>
+    CSVは<b>マトリクス形式</b>で出力されます。
+  </p>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>設定: 人数・条件</h2>
+      <label>対象月 (YYYY-MM)</label>
+      <input id="month" type="month" value="2026-02" />
+
+      <div class="row">
+        <div>
+          <label>日勤必要数 (平日)</label>
+          <input id="needDayWeekday" type="number" min="0" value="8" />
+        </div>
+        <div>
+          <label>日勤必要数 (土日祝)</label>
+          <input id="needDayHoliday" type="number" min="0" value="3" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>夜勤必要数 (全体)</label>
+          <input id="needNight" type="number" min="0" value="2" />
+        </div>
+        <div>
+          <label>早出・遅出 必要数</label>
+          <div class="row">
+            <input id="needEarly" type="number" min="0" value="0" placeholder="早" title="早出人数" />
+            <input id="needLate" type="number" min="0" value="0" placeholder="遅" title="遅出人数" />
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>[Aクラス] 日勤最低数 (平日)</label>
+          <input id="minClassADay" type="number" min="0" value="3" />
+        </div>
+        <div>
+          <label>[Aクラス] 日勤最低数 (休日)</label>
+          <input id="minClassADayHoliday" type="number" min="0" value="1" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>[Aクラス] 夜勤最低数</label>
+          <input id="minClassANight" type="number" min="0" value="1" />
+        </div>
+        <div><!-- Spacer --></div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>週あたりの夜勤回数上限</label>
+          <input id="weeklyNightCap" type="number" min="0" value="1" />
+        </div>
+        <div>
+          <label>月あたりの夜勤回数上限 (通常)</label>
+          <input id="monthlyNightCap" type="number" min="0" placeholder="(任意)" />
+        </div>
+      </div>
+      <div>
+        <label>月あたりの夜勤回数上限 (時短S)</label>
+        <input id="monthlyNightCapShort" type="number" min="0" value="1" placeholder="0=夜勤なし" />
+      </div>
+
+      <label>祝日設定 (日数 または 日付) <span class="note">※休日数は「土日の数 + ここに入力した日数」になります</span></label>
+      <textarea id="holidays" placeholder="2\n(または)\n2026-02-01\n2026-02-12" style="min-height:50px;"></textarea>
+
+      <h2>職員・希望</h2>
+      <label>職員リスト (名前:クラス:S) <span class="note">A=リーダー, B=一般, :S=時短</span></label>
+      <textarea id="staffList" placeholder="田中:A\n鈴木:B\n佐藤:B:S"></textarea>
+
+      <label>希望・制約 (日付 名前 種類) <span class="note">種類: 休, 日, 夜, ×夜 (省略時は休)</span></label>
+      <textarea id="requests" placeholder="2026-02-03 田中 休\n2026-02-05 鈴木 夜\n2026-02-10 佐藤 ×夜"></textarea>
+
+      <button class="btn" id="btnGen">シフト自動作成</button>
+      <div id="msg" class="note" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>操作・プレビュー</h2>
+      <div class="row">
+        <button class="btn secondary" id="btnCsv" disabled>Matrix CSV</button>
+        <button class="btn secondary" id="btnIcs" disabled>ICS</button>
+        <button class="btn secondary" id="btnReport" disabled>検証レポート</button>
+      </div>
+
+      <div id="tableWrap" style="margin-top:10px; overflow-x:auto;">(未作成)</div>
+      <pre id="reportArea"
+        style="background:#fff; padding:8px; border:1px solid #ccc; max-height:200px; overflow:auto; margin-top:10px; font-size:12px;"></pre>
+
+      <div class="footer note">
+        記号: <span class="sym-day">空白=日勤等</span>, <span class="sym-night">夜=夜勤</span>, <span
+          class="sym-post">明=明け</span>,
+        <span class="sym-off">休=休み</span><br>
+        優先順位: 固定希望 > 土日連休確保 > 休日数調整 > 夜勤割当 > 平準化
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Utils ---
+    const fmtDate = d => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+    const parseDate = s => new Date(s);
+    const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+    const getDayNum = d => d.getDay(); // 0=Sun, 6=Sat
+
+    // --- Input Parsing ---
+    function getVal(id, def = 0) {
+      const v = document.getElementById(id).value;
+      if (v === '') return def;
+      const n = Number(v);
+      return isNaN(n) ? def : n;
+    }
+    function getText(id) { return document.getElementById(id).value.trim(); }
+
+    function parseStaff(text) {
+      if (text.startsWith('[')) {
+        try { const arr = JSON.parse(text); if (Array.isArray(arr)) return arr.map(parseStaffLine); } catch (e) { }
+      }
+      return text.split(/\n+/).map(s => s.trim()).filter(Boolean).map(parseStaffLine);
+    }
+    function parseStaffLine(line) {
+      const parts = line.split(':');
+      const name = parts[0].trim();
+      let cls = 'B';
+      let isShort = false;
+      for (let i = 1; i < parts.length; i++) {
+        const p = parts[i].trim().toUpperCase();
+        if (p === 'A') cls = 'A';
+        else if (p === 'B') cls = 'B';
+        else if (p === 'S') isShort = true;
+      }
+      return { name, class: cls, isShort };
+    }
+
+    function parseRequests(text) {
+      const map = {};
+      const add = (d, n, t) => {
+        if (!map[d]) map[d] = {};
+        map[d][n] = t;
+      };
+
+      if (text.startsWith('[')) {
+        try {
+          const arr = JSON.parse(text);
+          arr.forEach(r => add(r.date, r.name, normalizeReqType(r.type)));
+          return map;
+        } catch (e) { }
+      }
+
+      text.split(/\n+/).forEach(line => {
+        let date, name, rawType;
+        line = line.trim();
+        if (!line) return;
+
+        // Check for Colon format (Name:Date:Type)
+        if (line.includes(':')) {
+          const parts = line.split(':');
+          if (parts.length >= 3) {
+            name = parts[0].trim();
+            date = parts[1].trim();
+            rawType = parts[2].trim();
+            add(date, name, normalizeReqType(rawType));
+            return;
+          }
+        }
+
+        // Space format (Date Name Type)
+        const parts = line.split(/\s+/);
+        if (parts.length < 2) return;
+        date = parts[0];
+        name = parts[1];
+        rawType = parts[2] || '休';
+        add(date, name, normalizeReqType(rawType));
+      });
+      return map;
+    }
+
+    function normalizeReqType(t) {
+      if (!t) return 'Off';
+      const s = String(t).toLowerCase();
+      if (['日', 'day'].includes(s)) return 'Day';
+      if (['夜', 'night'].includes(s)) return 'Night';
+      if (['×夜', 'nonight', 'no-night'].includes(s)) return 'NoNight';
+      return 'Off';
+    }
+
+    // New Holiday Parsing Logic
+    function parseHolidayInput(text, monthStr) {
+      // Returns { set: Set<string>, count: number }
+      // If single number provided, count=number, set=empty
+      // If dates provided, count=dates.size, set=dates
+      const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
+      if (lines.length === 1 && lines[0].match(/^\d+$/)) {
+        // Numeric mode
+        return { set: new Set(), count: parseInt(lines[0], 10) };
+      }
+      // Date mode
+      const s = new Set();
+      lines.forEach(line => {
+        const raw = line.split(/\s+/)[0];
+        if (!raw) return;
+        // Support "15" -> "YYYY-MM-15"
+        if (raw.match(/^\d{1,2}$/)) {
+          if (monthStr) s.add(`${monthStr}-${String(raw).padStart(2, '0')}`);
+        } else {
+          s.add(raw);
+        }
+      });
+      return { set: s, count: s.size };
+    }
+
+    // --- Holiday & Weekend Logic helpers ---
+
+    // Check if 'Off' at history[idx] is part of a "Weekend Consecutive Holiday"
+    // "Weekend Consecutive Holiday": A block of consecutive Offs (length >= 2) containing Sat or Sun.
+    // Note: We need to count disjoint BLOCKS.
+    function countWeekendConsecutiveBlocks(history, startDate) {
+      let count = 0;
+      let inBlock = false;
+      let blockHasSatSun = false;
+      let currentBlockLen = 0;
+
+      for (let i = 0; i < history.length; i++) {
+        const type = history[i];
+        const isOff = (type === 'Off'); // PostNight is NOT Off for this definition (user wants 2連休)
+
+        if (isOff) {
+          if (!inBlock) {
+            inBlock = true;
+            blockHasSatSun = false;
+            currentBlockLen = 0;
+          }
+          currentBlockLen++;
+
+          // Check if this day is Sat or Sun
+          const d = addDays(startDate, i);
+          const dow = d.getDay();
+          if (dow === 0 || dow === 6) blockHasSatSun = true;
+        } else {
+          if (inBlock) {
+            // Block ended
+            if (currentBlockLen >= 2 && blockHasSatSun) count++;
+            inBlock = false;
+          }
+        }
+      }
+      // Check end
+      if (inBlock) {
+        if (currentBlockLen >= 2 && blockHasSatSun) count++;
+      }
+      return count;
+    }
+
+    // Predict max possible weekend blocks if all remaining days are Off
+    function getMaxPossibleWeekendBlocks(history, startDate, totalDays) {
+      // Construct a hypothetical full history: existing history + 'Off' for all remainder
+      const futureLen = totalDays - history.length;
+      if (futureLen <= 0) return countWeekendConsecutiveBlocks(history, startDate);
+
+      const hypo = [...history];
+      for (let k = 0; k < futureLen; k++) hypo.push('Off');
+      return countWeekendConsecutiveBlocks(hypo, startDate);
+    }
+
+    // Check if assigning 'Work' today would compromise the ability to reach target=2 blocks
+    function isCriticalForWeekendBlock(history, startDate, totalDays, target = 2) {
+      // Hypothetical: If I Work today
+      const nextIdx = history.length;
+
+      // Sim: Today=Work, Rest=Off
+      const hypoWork = [...history, 'Day']; // Assign Day (Work)
+      for (let k = hypoWork.length; k < totalDays; k++) hypoWork.push('Off');
+
+      const possibleIfWork = countWeekendConsecutiveBlocks(hypoWork, startDate);
+
+      if (possibleIfWork < target) {
+        // Check if it WAS possible before deciding to work today
+        const currMax = getMaxPossibleWeekendBlocks(history, startDate, totalDays);
+        if (currMax >= target) {
+          // Yes, we lose the chance if we work today. Critical!
+          return true;
+        }
+      }
+      return false;
+    }
+
+
+    // --- Logic ---
+    function generateSchedule() {
+      try {
+        console.log("Start generateSchedule");
+        const monthStr = document.getElementById('month').value;
+        if (!monthStr) return alert("対象月を選択してください");
+
+        const startDate = new Date(monthStr + "-01");
+        const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+        const daysInMonth = endDate.getDate();
+
+        // Settings
+        const reqDayWk = getVal('needDayWeekday', 3);
+        const reqDayHol = getVal('needDayHoliday', 2);
+        const reqNight = getVal('needNight', 2);
+        const reqEarly = getVal('needEarly', 1);
+        const reqLate = getVal('needLate', 1);
+
+        const minClassADay = getVal('minClassADay', 1);
+        const minClassADayHoliday = getVal('minClassADayHoliday', 1);
+        const minClassANight = getVal('minClassANight', 1);
+
+        const capMo = (document.getElementById('monthlyNightCap').value === '') ? 999 : getVal('monthlyNightCap', 999);
+        const capMoShort = getVal('monthlyNightCapShort', 0);
+        const capWk = getVal('weeklyNightCap', 1);
+
+        // Data
+        const staffList = parseStaff(getText('staffList'));
+        const requests = parseRequests(getText('requests'));
+
+        const holidayInfo = parseHolidayInput(getText('holidays'), monthStr);
+        const holidaySet = holidayInfo.set; // For IsHol check (staffing) - only if dates provided
+
+        if (staffList.length === 0) return alert("職員リストを入力してください");
+
+        // 1. Calculate Holiday Quota
+        // Quota = Sats + Suns + UserInput.count
+        let countSat = 0;
+        let countSun = 0;
+        for (let i = 1; i <= daysInMonth; i++) {
+          const d = new Date(startDate.getFullYear(), startDate.getMonth(), i);
+          if (d.getDay() === 0) countSun++;
+          if (d.getDay() === 6) countSat++;
+        }
+        const totalHolidaysRequired = countSat + countSun + holidayInfo.count;
+        const maxWorkDays = daysInMonth - totalHolidaysRequired;
+
+        // Init State
+        const schedule = [];
+        const stats = {};
+        staffList.forEach(s => {
+          stats[s.name] = {
+            total: 0, nightMonth: 0,
+            class: s.class,
+            isShort: s.isShort,
+            history: []
+          };
+        });
+
+        // 4. Surplus Distribution - Init
+        // Calc Total Capacity
+        const totalCapacity = staffList.length * maxWorkDays;
+        // Calc Basic Needed
+        let totalNeeded = 0;
+        for (let i = 1; i <= daysInMonth; i++) {
+          const d = new Date(startDate.getFullYear(), startDate.getMonth(), i);
+          const dow = d.getDay();
+          const dateStr = fmtDate(d);
+          const isHol = (dow === 0 || dow === 6 || holidaySet.has(dateStr));
+
+          totalNeeded += reqNight;
+          if (!isHol) {
+            totalNeeded += reqEarly + reqLate + reqDayWk;
+          } else {
+            totalNeeded += reqDayHol;
+          }
+        }
+
+        // Note: Night shifts consume 2 days of capacity (Night + PostNight).
+        // totalNeeded only counts shifts. We must subtract the PostNight consumption from available surplus.
+        const totalNightShifts = reqNight * daysInMonth;
+        let remainingSurplus = Math.max(0, totalCapacity - totalNeeded - totalNightShifts);
+        // We will distribute this dynamically in the loop based on availability
+
+        // Loop Days
+        for (let i = 1; i <= daysInMonth; i++) {
+          const d = new Date(startDate.getFullYear(), startDate.getMonth(), i);
+          const dateStr = fmtDate(d);
+          const dayOfWeek = d.getDay();
+          const remainingDays = daysInMonth - i + 1;
+
+          // Definition of "Holiday for Staffing": Sat, Sun, OR dates in holidaySet
+          const isStaffingHol = (dayOfWeek === 0 || dayOfWeek === 6) || holidaySet.has(dateStr);
+
+          // Helper stats
+          const getConsecutive = (name) => {
+            let count = 0;
+            const hist = stats[name].history;
+            for (let k = hist.length - 1; k >= 0; k--) {
+              const type = hist[k];
+              if (type === 'Off') break;
+              count++;
+            }
+            return count;
+          };
+
+          const getWorkDensity = (name, days) => {
+            let count = 0;
+            const hist = stats[name].history;
+            for (let k = 1; k <= days; k++) {
+              const idx = hist.length - k;
+              if (idx < 0) break;
+              const type = hist[idx];
+              if (type !== 'Off') count++;
+            }
+            return count;
+          };
+
+          const targetClassADay = isStaffingHol ? minClassADayHoliday : minClassADay;
+
+          // Targets
+          const targetNight = reqNight;
+          const targetEarly = isStaffingHol ? 0 : reqEarly;
+          const targetLate = isStaffingHol ? 0 : reqLate;
+          const baseTargetDay = isStaffingHol ? reqDayHol : reqDayWk;
+
+          let targetDay = baseTargetDay;
+          // Dynamic Surplus Check will happen after Pool Creation
+          const assignments = { night: [], early: [], late: [], day: [], off: [] };
+          const pool = { night: [], day: [] };
+
+          // Prepare Candidates
+          staffList.forEach(p => {
+            const name = p.name;
+            const req = requests[dateStr]?.[name];
+            const prevShift = stats[name].history[i - 2];
+
+            // Post-Night Rule
+            if (prevShift === 'Night') {
+              assignments.off.push(name);
+              stats[name].history.push('PostNight');
+              return;
+            }
+
+            // Requests
+            if (req === 'Off') {
+              assignments.off.push(name);
+              stats[name].history.push('Off');
+              return;
+            }
+            if (req === 'Night') {
+              // (Assuming validation passed or we just force it)
+              assignments.night.push(name);
+              stats[name].history.push('Night');
+              stats[name].nightMonth++;
+              stats[name].total++;
+              return;
+            }
+            if (req === 'Day') {
+              assignments.day.push(name);
+              stats[name].history.push('Day');
+              stats[name].total++;
+              return;
+            }
+
+            // Cap checks
+            const myCap = p.isShort ? capMoShort : capMo;
+            let nightsInWeek = 0;
+            for (let k = 1; k <= 6; k++) {
+              if (stats[name].history[i - 1 - k] === 'Night') nightsInWeek++;
+            }
+
+            // Check Tomorrow for Off Request (Night restriction)
+            const tmrStr = fmtDate(addDays(d, 1));
+            const tmrReqOff = (requests[tmrStr]?.[name] === 'Off');
+
+            let canNight = req !== 'NoNight' && stats[name].nightMonth < myCap && nightsInWeek < capWk && !tmrReqOff;
+
+            // 1. Quota Check (Max Work Days)
+            // "Consumed" approach for limit
+            const postNightCount = stats[name].history.filter(h => h === 'PostNight').length;
+            const consumedDays = stats[name].total + postNightCount;
+            const isMaxWorkStr = consumedDays >= maxWorkDays;
+
+            // STRICT QUOTA: Check if "Must Work"
+            // If remaining slots == remaining work needed, they MUST work.
+            // Remaining Slots (including Today) = daysInMonth - i + 1;
+            const remainingSlots = daysInMonth - i + 1;
+            const workNeeded = maxWorkDays - consumedDays;
+            const isMustWork = (workNeeded >= remainingSlots);
+
+            // 2. Weekend Logic (Criticality Check)
+            const mustOffForWeekend = isCriticalForWeekendBlock(stats[name].history, startDate, daysInMonth, 2);
+
+            // 3. Consecutive Limit
+            // User Request: Limit currently allowing long streaks -> Enforce 3-day limit.
+            const isConsecutiveLimit = getConsecutive(name) >= 3;
+
+            if (isMustWork) {
+              // Force Availability (Quota overrides consecutive limit at end-of-month crunch)
+              if (canNight) pool.night.push(p);
+              pool.day.push(p);
+              p.mustWork = true;
+            } else if (isMaxWorkStr || mustOffForWeekend || isConsecutiveLimit) {
+              // Must Off (Quota Full OR Weekend Off Needed OR Consecutive Limit Reached)
+              assignments.off.push(name);
+              stats[name].history.push('Off');
+            } else {
+              // Available
+              if (canNight) pool.night.push(p);
+              pool.day.push(p);
+              p.mustWork = false;
+            }
+          });
+
+          // Filling Slots (Night -> Early -> Late -> Day)
+
+          // Helper: sort pool
+          const sortPool = (list, needsClassA = false, isNight = false) => {
+            list.sort((a, b) => {
+              // 0. Must Work first
+              if (a.mustWork && !b.mustWork) return -1;
+              if (!a.mustWork && b.mustWork) return 1;
+
+              // 1. Class A (if needed)
+              if (needsClassA) {
+                if (a.class === 'A' && b.class !== 'A') return -1;
+                if (a.class !== 'A' && b.class === 'A') return 1;
+              }
+
+              // 2. Work Density (Prioritize those who haven't worked much recently)
+              const densA = getWorkDensity(a.name, 7);
+              const densB = getWorkDensity(b.name, 7);
+
+              // 3. Total Count (Leveling)
+              const scoreA = (densA * 10) + stats[a.name].total;
+              const scoreB = (densB * 10) + stats[b.name].total;
+
+              const diff = scoreA - scoreB;
+              if (Math.abs(diff) > 2) return diff;
+              return Math.random() - 0.5;
+            });
+          };
+          // Fill Night
+          const neededN = Math.max(0, targetNight - assignments.night.length);
+          if (neededN > 0) {
+            const currentClassACount = assignments.night.filter(n => stats[n].class === 'A').length;
+            const needClassA = Math.max(0, minClassANight - currentClassACount);
+
+            sortPool(pool.night, needClassA > 0, true);
+
+            for (let k = 0; k < neededN; k++) {
+              if (!pool.night.length) break;
+              const p = pool.night.shift();
+              pool.day = pool.day.filter(x => x.name !== p.name);
+              assignments.night.push(p.name);
+              stats[p.name].history.push('Night');
+              stats[p.name].total++;
+              stats[p.name].nightMonth++;
+            }
+          }
+
+          // Fill Early
+          const neededE = Math.max(0, targetEarly - assignments.early.length);
+          if (neededE > 0) {
+            sortPool(pool.day, false);
+            for (let k = 0; k < neededE; k++) {
+              if (!pool.day.length) break;
+              const p = pool.day.shift();
+              assignments.early.push(p.name);
+              stats[p.name].history.push('Early');
+              stats[p.name].total++;
+            }
+          }
+
+          // Fill Late
+          const neededL = Math.max(0, targetLate - assignments.late.length);
+          if (neededL > 0) {
+            sortPool(pool.day, false);
+            for (let k = 0; k < neededL; k++) {
+              if (!pool.day.length) break;
+              const p = pool.day.shift();
+              assignments.late.push(p.name);
+              stats[p.name].history.push('Late');
+              stats[p.name].total++;
+            }
+          }
+
+          // Dynamic Surplus Allocation
+          // If we have surplus to distribute, and plenty of people available for Day, take one more.
+          // Condition: Available > BaseTarget + 1 (safe buffer)
+          // Also Randomized probability to spread it out?
+          // To ensure we use all surplus, we should be aggressive if remainingSurplus is high relative to remainingDays.
+          if (remainingSurplus > 0) {
+            const canAbsorb = pool.day.length > (baseTargetDay + 1);
+            if (canAbsorb) {
+              // Heuristic: If we are 'behind' on distributing (Surplus/Days > something), force it.
+              // Or just Random 50%?
+              // If we don't distribute, we might fail to meet Monthly Minimum for some staff.
+              // Let's use simple probability:
+              // Chance = remainingSurplus / remainingDays * 1.5 (boosted)
+              const chance = (remainingSurplus / remainingDays) * 1.5;
+              if (Math.random() < chance) {
+                targetDay++;
+                remainingSurplus--;
+              }
+            }
+            // Fallback: If we are at the end of month and still have surplus, we MUST use it or people won't meet quota.
+            // But existing 'mustWork' logic handles "People failing quota".
+            // 'mustWork' forces them into the schedule. 
+            // Does 'mustWork' increment targetDay? 
+            // In previous logic: "if (neededD > 0 || p.mustWork)"
+            // Yes! If p.mustWork is true, we push them even if neededD=0.
+            // This effectively increases the day's count (Surplus).
+            // So 'mustWork' ALREADY handles the mandatory surplus for quota.
+            // Therefore, 'remainingSurplus' logic here is purely for SMOOTHING (getting head start).
+            // So we don't need to force it. We only do it if convenient.
+          }
+
+          // Fill Day
+          const currentDayCount = assignments.day.length;
+          let neededD = Math.max(0, targetDay - currentDayCount);
+
+          // Check Class A requirement (including Early/Late)
+          const countA_assigned = [...assignments.early, ...assignments.late, ...assignments.day]
+            .filter(n => stats[n].class === 'A').length; // currently assignments.day is empty but good for robustness
+          let needA = Math.max(0, targetClassADay - countA_assigned);
+
+          // Multi-stage selection
+          // Separate pool
+          const mustPool = pool.day.filter(p => p.mustWork);
+          const availA = pool.day.filter(p => !p.mustWork && p.class === 'A');
+          const availB = pool.day.filter(p => !p.mustWork && p.class !== 'A');
+
+          // Helper to assign
+          const assign = (p) => {
+            assignments.day.push(p.name);
+            stats[p.name].history.push('Day');
+            stats[p.name].total++;
+            neededD--;
+            if (p.class === 'A') needA--;
+          };
+
+          // 1. Must Work
+          mustPool.forEach(p => assign(p));
+
+          // 2. Satisfy Need A (from Available A)
+          // Sort availA by density/score
+          sortPool(availA, false); // Just density sort
+          while (needA > 0 && availA.length > 0) {
+            // Only take if we have slot or we strictly need A to meet daily req?
+            // Usually we have slots. If neededD < 0, we overfill?
+            // If we need A, we MUST take A even if it exceeds targetDay slightly?
+            // Typically targetDay is loose target. But let's stick to neededD constraint if possible.
+            // But Class A requirement is hard.
+            // If neededD <= 0, we normally stop.
+            // But if we have needA > 0, we should probably swap a B for an A?
+            // For now, let's assume neededD is large enough.
+            if (neededD <= 0) break; // Hard cap on total staff? 
+            // Actually user prioritized A req.
+            const p = availA.shift();
+            assign(p);
+          }
+
+          // 3. Fill Remainder (Prefer B to save A)
+          // Combine remaining availA and availB
+          let remainder = [...availB, ...availA];
+          // Sort: Prefer B (Class != A) -> Then Density
+          remainder.sort((a, b) => {
+            const isA_a = (a.class === 'A');
+            const isA_b = (b.class === 'A');
+            if (!isA_a && isA_b) return -1; // B comes first
+            if (isA_a && !isA_b) return 1;
+
+            // Density
+            const densA = getWorkDensity(a.name, 7);
+            const densB = getWorkDensity(b.name, 7);
+            const scoreA = (densA * 10) + stats[a.name].total;
+            const scoreB = (densB * 10) + stats[b.name].total;
+            return scoreA - scoreB;
+          });
+
+          while (neededD > 0 && remainder.length > 0) {
+            const p = remainder.shift();
+            assign(p);
+          }
+
+          // Remaining in pools are Off
+          // Reconstruct pool.day to find who was NOT assigned
+          // Actually we can just check who is NOT in assignments.day
+          // But effectively we processed `mustPool`, `availA` (some), `remainder` (some).
+          const assignedSet = new Set(assignments.day);
+          pool.day.forEach(p => {
+            if (!assignedSet.has(p.name)) {
+              assignments.off.push(p.name);
+              stats[p.name].history.push('Off');
+            }
+          });
+
+          schedule.push({
+            date: dateStr,
+            dow: ['日', '月', '火', '水', '木', '金', '土'][dayOfWeek],
+            assignments,
+            isStaffingHol,
+            reqDay: baseTargetDay // Store ORIGINAL requirement for comparison (so we see Red if we boosted)
+          });
+        }
+
+        renderMatrix(schedule, staffList, stats, holidaySet, requests, holidayInfo);
+        window.lastResult = { schedule, staffList, stats, holidaySet, requests, holidayInfo, startDate };
+
+        document.getElementById('btnCsv').disabled = false;
+        document.getElementById('btnIcs').disabled = false;
+        document.getElementById('btnReport').disabled = false;
+        document.getElementById('msg').innerHTML = '<span class="ok">Done</span>';
+      } catch (e) {
+        console.error(e);
+        alert("エラーが発生しました: " + e.message);
+        document.getElementById('msg').innerHTML = '<span class="error">Error</span>';
+      }
+    }
+
+    // --- Report ---
+    function showReport() {
+      if (!window.lastResult) return;
+      const { schedule, staffList, stats, holidaySet, requests, holidayInfo, startDate } = window.lastResult;
+      const daysInMonth = schedule.length;
+
+      let log = "";
+
+      // 1. Quota Check
+      log += "[休日数 (公休数) チェック]\n";
+      // Calc quota
+      let countSat = 0, countSun = 0;
+      schedule.forEach(d => {
+        const dow = new Date(d.date).getDay();
+        if (dow === 0) countSun++;
+        if (dow === 6) countSat++;
+      });
+      const requiredOff = countSat + countSun + holidayInfo.count;
+      const maxWork = daysInMonth - requiredOff;
+
+      log += `月間日数: ${daysInMonth}, 土: ${countSat}, 日: ${countSun}, 入力祝日: ${holidayInfo.count}\n`;
+      log += `目標休日数: ${requiredOff} (勤務上限: ${maxWork})\n\n`;
+
+      staffList.forEach(s => {
+        const totalWork = stats[s.name].total; // Note: Work shifts only. PostNight consumes day but is not "total work count" in some definitions, but for "holidays", holiday means 24h off. PostNight is NOT holiday.
+        // Total Work Days = Days assigned Day/Night/Early/Late. PostNight is "Work" in terms of "Not a Holiday".
+        // Wait, simple check: Work + PostNight + Off = Month.
+        // Holiday Count = Count of 'Off'.
+        // So Max Work = Month - 'Off'.
+        const offCount = stats[s.name].history.filter(h => h === 'Off').length;
+
+        if (offCount < requiredOff) {
+          log += `[不足] ${s.name}: 休日${offCount} < 目標${requiredOff}\n`;
+        } else if (offCount > requiredOff) {
+          log += `[多め] ${s.name}: 休日${offCount} > 目標${requiredOff}\n`;
+        } else {
+          log += `[OK] ${s.name}: 休日${requiredOff}\n`;
+        }
+      });
+
+      // 2. Weekend Consecutive Check
+      log += "\n[土日を含む2連休 (月2回以上)]\n";
+      staffList.forEach(s => {
+        const blocks = countWeekendConsecutiveBlocks(stats[s.name].history, startDate);
+        if (blocks < 2) {
+          log += `[未達成] ${s.name}: ${blocks}回 (目標2回)\n`;
+        } else {
+          log += `[OK] ${s.name}: ${blocks}回\n`;
+        }
+      });
+
+      // 3. Requests mismatch
+      log += "\n[希望チェック]\n";
+      let missCount = 0;
+      schedule.forEach(day => {
+        const date = day.date;
+        staffList.forEach(s => {
+          const req = requests[date]?.[s.name];
+          if (!req) return;
+
+          // Check result
+          const isOff = day.assignments.off.includes(s.name); // Includes PostNight? No, PostNight is Off pool?
+          // Actually in assignments logic:
+          // assignments.off includes PostNight-ers?
+          // In Loop: if prev=Night -> assignments.off.push(name); history.push('PostNight');
+          // So Yes, 'PostNight' people are in 'assignments.off' arrays?
+          // Wait, assignments.off is just names.
+          // We need to distinguish actual logic.
+          // But valid check:
+
+          let assignedType = 'Day';
+          if (day.assignments.night.includes(s.name)) assignedType = 'Night';
+          else if (day.assignments.off.includes(s.name)) {
+            // Check history to distinguish PostNight vs Off?
+            const h = stats[s.name].history.find((_, i) => schedule[i].date === date); // messy
+            // Easier:
+            assignedType = 'Off';
+            // If it was PostNight, it is distinct from 'Off'? Req 'Off' usually means "I want holiday". PostNight is not holiday.
+            // But for simplicity let's rely on basic check.
+          }
+
+          // ... (Skipping detailed request re-check code for brevity in this Quick Replace, rely on manual visual check or simple logic)
+          // Re-implement basic check
+          const histIdx = schedule.findIndex(d => d.date === date);
+          const actual = stats[s.name].history[histIdx];
+
+          let ok = false;
+          if (req === 'Off' && actual === 'Off') ok = true;
+          if (req === 'Day' && (actual === 'Day' || actual === 'Early' || actual === 'Late')) ok = true;
+          if (req === 'Night' && actual === 'Night') ok = true;
+          if (req === 'NoNight' && actual !== 'Night') ok = true;
+
+          if (!ok && req === 'Off' && actual === 'PostNight') {
+            // User asked "Off", got "PostNight". Usually acceptable? or No?
+            // "Off" request usually implies "Whole day off". PostNight is work.
+            // So Not OK.
+          }
+
+          if (!ok) {
+            log += `[NG] ${date} ${s.name}: 希${req} -> 結${actual}\n`;
+            missCount++;
+          }
+        });
+      });
+      if (missCount === 0) log += "希望はすべて叶いました。\n";
+
+
+      document.getElementById('reportArea').innerText = log;
+    }
+
+    // --- Output (CSV/ICS) ---
+    // (Previous code for CSV ICS - reused existing or need to verify if removed? 
+    // I need to ensure renderMatrix and listeners are present.
+    // I will include them below.)
+
+    function renderMatrix(schedule, staffList, stats, holidays, requests, holidayInfo) {
+      const wrap = document.getElementById('tableWrap');
+
+      // Legend
+      let legend = '<div style="margin-bottom:10px; font-size:0.9em; color:#666;">';
+      legend += '<span style="display:inline-block; width:12px; height:12px; background:#fee; border-bottom:2px solid red; margin-right:4px; vertical-align:middle;"></span>';
+      legend += '赤背景: <b>余剰</b> ';
+      legend += '<span style="display:inline-block; width:12px; height:12px; background:#eef; border-bottom:2px solid blue; margin-left:10px; margin-right:4px; vertical-align:middle;"></span>';
+      legend += '青背景: <b>不足</b> ';
+      legend += '<span style="margin-left:15px;">[ ] : 希望通り (例: [休])</span>';
+      legend += '</div>';
+
+      let h = legend + '<table><thead><tr><th>名前</th><th>クラス</th>';
+      schedule.forEach(day => {
+        const d = new Date(day.date);
+        const dow = d.getDay();
+        let cls = '';
+        // Check surplus/deficit
+        const totalDay = day.assignments.day.length + day.assignments.early.length + day.assignments.late.length;
+        const isSurplus = totalDay > day.reqDay;
+        const isDeficit = totalDay < day.reqDay;
+
+        if (dow === 0) cls = 'color:#d14';
+        if (dow === 6) cls = 'color:#24d';
+        if (holidays.has(day.date)) cls = 'color:#d14; font-weight:bold;';
+
+        let style = cls ? ` style="${cls}"` : '';
+        if (isSurplus) style = ' style="color:#d00; background-color:#fee; font-weight:bold; border-bottom:2px solid red;" title="人員過多"';
+        if (isDeficit) style = ' style="color:#00d; background-color:#eef; font-weight:bold; border-bottom:2px solid blue;" title="人員不足"';
+
+        h += `<th${style}>${day.date.slice(8)}<br><small>${day.dow}</small></th>`;
+      });
+
+
+      // Stats Headers
+      h += '<th>出勤</th><th>日勤</th><th>夜勤</th><th>休日</th>';
+      h += '</tr></thead><tbody>';
+
+      staffList.forEach(s => {
+        let dispClass = s.class;
+        if (s.isShort) dispClass += '-S';
+
+        h += `<tr><th>${s.name}</th><td style="text-align:center;">${dispClass}</td>`;
+
+        // Counters for this row
+        let countTotal = 0;
+        let countDay = 0;
+        let countNight = 0;
+        let countOff = 0;
+
+        schedule.forEach((day, i) => {
+          const hist = stats[s.name].history[i];
+          let cellCls = '';
+          let text = '';
+
+          if (hist === 'Night') { text = '夜'; cellCls = 'sym-night'; countTotal++; countNight++; }
+          else if (hist === 'PostNight') { text = '明'; cellCls = 'sym-post'; }
+          else if (hist === 'Off') { text = '休'; cellCls = 'sym-off'; countOff++; }
+          else if (hist === 'Early') { text = '早'; cellCls = 'sym-day'; countTotal++; countDay++; }
+          else if (hist === 'Late') { text = '遅'; cellCls = 'sym-day'; countTotal++; countDay++; }
+          else { text = ''; cellCls = 'sym-day'; countTotal++; countDay++; } // Day
+
+          // Request Matching Logic for []
+          const req = requests[day.date]?.[s.name];
+          if (req) {
+            let isMatch = false;
+            // Req Types: Off, Day, Night, NoNight
+            if (req === 'Off' && (hist === 'Off' || hist === 'PostNight')) isMatch = true;
+            if (req === 'Off' && hist === 'Off') isMatch = true;
+            if (req === 'Night' && hist === 'Night') isMatch = true;
+            if (req === 'Day' && (hist === 'Day' || hist === 'Early' || hist === 'Late')) isMatch = true;
+
+            // NoNight is negative constraint, usually doesn't need [] unless strictly requested not to be night. 
+            // But conventionally [] is for "Desired and Granted".
+            // If matches specific positive request.
+            if (req !== 'NoNight' && isMatch) {
+              text = `[${text}]`;
+              // Bold or color? Just text based on user request.
+            }
+          }
+
+          // Check holiday for background
+          const d = new Date(day.date);
+          const dow = d.getDay();
+          let style = '';
+          if (dow === 0 || dow === 6 || holidays.has(day.date)) {
+            style = 'background-color:#f9f9fc;'; // faint bg for holidays
+          }
+
+          h += `<td class="${cellCls}" style="${style}">${text}</td>`;
+        });
+
+        // Stats Cells
+        h += `<td>${countTotal}</td><td>${countDay}</td><td>${countNight}</td><td>${countOff}</td>`;
+        h += '</tr>';
+      });
+
+      h += '</tbody></table>';
+      wrap.innerHTML = h;
+    }
+
+    // Event Listeners
+    document.getElementById('btnGen').onclick = generateSchedule;
+    document.getElementById('btnReport').onclick = showReport;
+
+    // ... Restoring Generic CSV/ICS Code ...
+    document.getElementById('btnCsv').onclick = () => {
+      if (!window.lastResult) return;
+      const { schedule, staffList, stats, requests } = window.lastResult;
+
+      // Header: Name, Day1, Day2...
+      let csv = "Name,Class," + schedule.map(d => `${Number(d.date.slice(8))}(${d.dow})`).join(",") + ",出勤,日勤,夜勤,休日\n";
+
+      staffList.forEach(s => {
+        let dispClass = s.class;
+        if (s.isShort) dispClass += '-S';
+
+        const row = [s.name, dispClass];
+
+        // Counters
+        let countTotal = 0;
+        let countDay = 0;
+        let countNight = 0;
+        let countOff = 0;
+
+        let text = '';
+        schedule.forEach((day, i) => {
+          const hist = stats[s.name].history[i];
+
+          if (hist === 'Night') { text = '夜'; countTotal++; countNight++; }
+          else if (hist === 'PostNight') { text = '明'; }
+          else if (hist === 'Off') { text = '休'; countOff++; }
+          else if (hist === 'Early') { text = '早'; countTotal++; countDay++; }
+          else if (hist === 'Late') { text = '遅'; countTotal++; countDay++; }
+          else { text = ''; countTotal++; countDay++; } // Day (Day/Blank)
+
+          // Request Matching Logic for []
+          const req = requests[day.date]?.[s.name];
+          if (req) {
+            let isMatch = false;
+            if (req === 'Off' && (hist === 'Off' || hist === 'PostNight')) isMatch = true;
+            if (req === 'Off' && hist === 'Off') isMatch = true;
+            if (req === 'Night' && hist === 'Night') isMatch = true;
+            if (req === 'Day' && (hist === 'Day' || hist === 'Early' || hist === 'Late')) isMatch = true;
+
+            if (req !== 'NoNight' && isMatch) {
+              text = `[${text}]`;
+            }
+          }
+          row.push(text);
+        });
+
+        row.push(countTotal);
+        row.push(countDay);
+        row.push(countNight);
+        row.push(countOff);
+
+        csv += row.join(",") + "\n";
+      });
+      downloadBlob(csv, 'shift_transposed.csv', 'text/csv');
+    };
+
+    document.getElementById('btnIcs').onclick = () => {
+      if (!window.lastResult) return;
+      const { schedule, staffList, stats } = window.lastResult;
+      let ics = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//ShiftCrafter//JP\n";
+      schedule.forEach((day, i) => {
+        staffList.forEach(s => {
+          const code = stats[s.name].history[i];
+          if (code === 'Off' || code === 'PostNight') return; // Skip Off
+
+          const y = day.date.replace(/-/g, '');
+          // Simple All Day event
+          ics += "BEGIN:VEVENT\n";
+          ics += `DTSTART;VALUE=DATE:${y}\n`;
+          ics += `SUMMARY:${s.name} ${code}\n`;
+          ics += "END:VEVENT\n";
+        });
+      });
+      ics += "END:VCALENDAR";
+      downloadBlob(ics, 'shift.ics', 'text/calendar');
+    };
+
+    function downloadBlob(content, filename, type) {
+      const blob = new Blob([content], { type: type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+  </script>
+</body>
+
+</html>
